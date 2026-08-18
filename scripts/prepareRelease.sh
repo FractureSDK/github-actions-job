@@ -31,7 +31,7 @@ echo "✨Last release commit: $LAST_RELEASE_COMMIT"
 
 # Commits log
 COMMIT_LOG=$(git log $LAST_RELEASE_COMMIT..HEAD --pretty=format:"- [\`%h\`](https://gitlab.com/${CI_PROJECT_PATH}/-/commit/%H) %s (%an)")
-if [ -z $COMMIT_LOG ]; then
+if [ -z "$COMMIT_LOG" ]; then
   COMMIT_LOG="⚠️No new commits since $LATEST_TAG."
 else
   echo "✅Commits log generated"
