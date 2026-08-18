@@ -12,7 +12,7 @@ index 11c857e6d42f23994dbded70fbe052e15db2dc4b..ed275123642d929b51b93f7f2ea82585
  public final class CraftDefaultPermissions {
      private static final String ROOT = "minecraft";
      public static final String GALE_ROOT = "gale"; // Gale - set Gale permissions root
-+    public static final String LEAF_ROOT = "leaf"; // Leviathan - Leviathan commands
++    public static final String LEVIATHAN_ROOT = "leviathan"; // Leviathan - Leviathan commands
  
      private CraftDefaultPermissions() {}
  
