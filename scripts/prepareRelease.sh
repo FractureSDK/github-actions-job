@@ -17,8 +17,8 @@ CURRENT_BRANCH=$(git rev-parse --abbrev-ref HEAD)
 echo "✨Current branch: $CURRENT_BRANCH"
 
 # Latest tag name
-LATEST_TAG=$(git describe --tags --abbrev=0)
-if [ -z $LATEST_TAG ]; then
+LATEST_TAG=$(git describe --tags --abbrev=0 2>/dev/null || true)
+if [ -z "$LATEST_TAG" ]; then
   LATEST_TAG=$(git rev-list --max-parents=0 HEAD)
   echo "⚠️No previous release found. Using initial commit."
 else

@@ -12,6 +12,7 @@ include:
 
 variables:
   GRADLE_OPTS: "-Dorg.gradle.jvmargs=-Xmx4g -XX:MaxMetaspaceSize=1g"
+  GIT_DEPTH: 0
 
 sast:
   stage: test
@@ -101,4 +102,4 @@ release:
     expire_in: 30 days
     paths:
       - release_notes.md
-      - "leviathan-${MC_VERSION}-${BUILD_NUMBER}.jar"
+      - leviathan-*.jar
