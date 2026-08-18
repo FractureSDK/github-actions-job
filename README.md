@@ -79,6 +79,11 @@ java {
 ```
 </details>
 
+## 📊 bStats
+Leviathan uses [bStats](https://bstats.org) to collect anonymous usage statistics, such as how many servers run Leviathan and which Minecraft versions are in use. You can opt out by setting `enabled: false` in `plugins/bStats/config.yml`.
+
+[View Leviathan on bStats](https://bstats.org/plugin/server-implementation/Leviathan)
+
 ## ⚖️ License
 Leviathan is licensed under various open source licenses from its upstream projects. See [LICENSE.md](LICENSE.md) for full details.
 
