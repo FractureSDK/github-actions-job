@@ -1,13 +1,102 @@
-# You can override the included template(s) by including variable overrides
-# SAST customization: https://docs.gitlab.com/user/application_security/sast/#available-cicd-variables
-# Secret Detection customization: https://docs.gitlab.com/user/application_security/secret_detection/pipeline/configure/
-# Dependency Scanning customization: https://docs.gitlab.com/user/application_security/dependency_scanning/dependency_scanning_sbom/#customizing-analyzer-behavior
-# Container Scanning customization: https://docs.gitlab.com/user/application_security/container_scanning/#customizing-analyzer-behavior
-# Note that environment variables can be set in several places
-# See https://docs.gitlab.com/ci/variables/#cicd-variable-precedence
+# Leviathan CI/CD
+# Build pipeline for the Leviathan Paper fork.
+# Manual jobs: release (creates a GitLab Release), publish-api (uploads to Package Registry).
+
 stages:
-- test
+  - test
+  - build
+  - release
+
+include:
+  - template: Security/SAST.gitlab-ci.yml
+
+variables:
+  GRADLE_OPTS: "-Dorg.gradle.jvmargs=-Xmx4g -XX:MaxMetaspaceSize=1g"
+
 sast:
   stage: test
-include:
-- template: Security/SAST.gitlab-ci.yml
+
+build:
+  stage: build
+  image: eclipse-temurin:25-jdk
+  rules:
+    - if: $CI_COMMIT_BRANCH
+  before_script:
+    - git config --global user.email "ci@gitlab.com"
+    - git config --global user.name "GitLab CI"
+    - export MC_VERSION=$(grep '^mcVersion=' gradle.properties | cut -d= -f2)
+    - echo "MC_VERSION=$MC_VERSION"
+  script:
+    - ./gradlew applyAllPatches --stacktrace --no-daemon
+    - ./gradlew createPaperclipJar --stacktrace --no-daemon
+    - chmod +x ./scripts/prepareRelease.sh
+  artifacts:
+    when: always
+    expire_in: 14 days
+    paths:
+      - leviathan-server/build/libs/
+  cache:
+    key:
+      files:
+        - gradle.properties
+        - gradle/wrapper/gradle-wrapper.properties
+    paths:
+      - .gradle/caches
+      - .gradle/wrapper
+
+publish-api:
+  stage: release
+  image: eclipse-temurin:25-jdk
+  needs:
+    - build
+  rules:
+    - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
+      when: manual
+  before_script:
+    - git config --global user.email "ci@gitlab.com"
+    - git config --global user.name "GitLab CI"
+  script:
+    - ./gradlew :leviathan-api:publish --stacktrace --no-daemon
+  cache:
+    key:
+      files:
+        - gradle.properties
+        - gradle/wrapper/gradle-wrapper.properties
+    paths:
+      - .gradle/caches
+      - .gradle/wrapper
+
+release:
+  stage: release
+  image: alpine:latest
+  needs:
+    - build
+  rules:
+    - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
+      when: manual
+  before_script:
+    - apk add --no-cache git curl bash coreutils
+    - export MC_VERSION=$(grep '^mcVersion=' gradle.properties | cut -d= -f2)
+    - export BUILD_NUMBER=$CI_PIPELINE_IID
+  script:
+    - JAR_NAME="leviathan-${MC_VERSION}-${BUILD_NUMBER}.jar"
+    - cp ./leviathan-server/build/libs/leviathan-paperclip-${MC_VERSION}*.jar ./$JAR_NAME
+    - chmod +x ./scripts/prepareRelease.sh
+    - ./scripts/prepareRelease.sh
+    - |
+      curl --header "JOB-TOKEN: ${CI_JOB_TOKEN}" \
+        --upload-file ./$JAR_NAME \
+        "${CI_API_V4_URL}/projects/${CI_PROJECT_ID}/packages/generic/leviathan/${MC_VERSION}/$JAR_NAME"
+    - |
+      release-cli create \
+        --name "Leviathan ${MC_VERSION}" \
+        --tag-name "ver-${MC_VERSION}" \
+        --ref "${CI_COMMIT_REF_NAME}" \
+        --description-file release_notes.md \
+        --assets-link "{\"name\":\"$JAR_NAME\",\"url\":\"${CI_API_V4_URL}/projects/${CI_PROJECT_ID}/packages/generic/leviathan/${MC_VERSION}/$JAR_NAME\"}"
+  artifacts:
+    when: always
+    expire_in: 30 days
+    paths:
+      - release_notes.md
+      - "leviathan-${MC_VERSION}-${BUILD_NUMBER}.jar"

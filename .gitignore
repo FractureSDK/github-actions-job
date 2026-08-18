@@ -1,0 +1,32 @@
+# Mac filesystem dust
+.DS_Store/
+.DS_Store
+
+# Linux temp files
+*~
+
+# vim
+.*.sw[a-p]
+
+# IntelliJ
+*.iml
+.idea
+!.idea/icon.svg
+
+# Gradle
+!gradle/wrapper/gradle-wrapper.jar
+.gradle
+build
+
+# Leviathan
+build-data/dev-imports.txt
+leviathan-archived-patches/todo
+run
+
+leviathan-api/build.gradle.kts
+leviathan-server/build.gradle.kts
+leviathan-server/src/minecraft
+paper-api
+paper-server
+
+.codegraph
