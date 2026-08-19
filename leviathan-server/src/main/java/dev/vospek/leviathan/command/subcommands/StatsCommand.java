@@ -215,7 +215,12 @@ public final class StatsCommand extends PermissionedLeviathanSubcommand {
 
     private double getTotalThreadCpuTimeSeconds(ThreadMXBean threadMXBean) {
         if (threadMXBean instanceof com.sun.management.ThreadMXBean sunBean) {
-            return sunBean.getTotalThreadCpuTime() / 1_000_000_000.0;
+            long total = 0;
+            long[] times = sunBean.getThreadCpuTime(threadMXBean.getAllThreadIds());
+            for (long time : times) {
+                if (time > 0) total += time;
+            }
+            return total / 1_000_000_000.0;
         }
         return 0.0;
     }

@@ -145,8 +145,8 @@ public final class MemoryMetrics {
     public long getDirectMemoryUsed() { return directMemoryUsed.getAsLong(); }
     public long getDirectMemoryMax() { return directMemoryMax.getAsLong(); }
 
-    public long getGcCount() { return gcCount.get(); }
-    public long getGcTime() { return gcTime.get(); }
+    public long getGcCount() { return gcCount.getAsLong(); }
+    public long getGcTime() { return gcTime.getAsLong(); }
     public double getGcCpuPercent() { return gcCpuPercent.getAsDouble(); }
     public double getAllocationRateMbPerSec() { return allocationRate.getAsDouble(); }
 

@@ -59,10 +59,15 @@ public final class ThreadMetrics {
      * 获取总线程 CPU 时间（纳秒）
      */
     public long getTotalThreadCpuTimeNs() {
-        if (SUN_THREAD_BEAN != null) {
-            return SUN_THREAD_BEAN.getTotalThreadCpuTime();
+        if (SUN_THREAD_BEAN == null) {
+            return -1L;
         }
-        return -1L;
+        long total = 0;
+        long[] times = SUN_THREAD_BEAN.getThreadCpuTime(THREAD_BEAN.getAllThreadIds());
+        for (long time : times) {
+            if (time > 0) total += time;
+        }
+        return total;
     }
 
     /**
