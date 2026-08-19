@@ -92,6 +92,9 @@ public class LeviathanConfig {
             long begin = System.nanoTime();
             LOGGER.info("Loading config...");
 
+            // Initialize Leviathan Bootstrap (Runtime Detector + Hardware Capabilities)
+            dev.vospek.leviathan.bootstrap.LeviathanBootstrap.initialize();
+
             purgeOutdated();
             loadConfig(true);
 

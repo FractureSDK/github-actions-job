@@ -6,7 +6,11 @@ import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.format.NamedTextColor;
 import net.minecraft.util.Util;
 import dev.vospek.leviathan.command.subcommands.MSPTCommand;
+import dev.vospek.leviathan.command.subcommands.MetricsCommand;
 import dev.vospek.leviathan.command.subcommands.ReloadCommand;
+import dev.vospek.leviathan.command.subcommands.RuntimeCommand;
+import dev.vospek.leviathan.command.subcommands.StatusCommand;
+import dev.vospek.leviathan.command.subcommands.StatsCommand;
 import dev.vospek.leviathan.command.subcommands.VersionCommand;
 import org.jspecify.annotations.Nullable;
 import org.bukkit.Bukkit;
@@ -38,12 +42,20 @@ public final class LeviathanCommand extends Command {
     private static final LeviathanSubcommand RELOAD_SUBCOMMAND = new ReloadCommand();
     private static final LeviathanSubcommand VERSION_SUBCOMMAND = new VersionCommand();
     private static final LeviathanSubcommand MSPT_SUBCOMMAND = new MSPTCommand();
+    private static final LeviathanSubcommand RUNTIME_SUBCOMMAND = new RuntimeCommand();
+    private static final LeviathanSubcommand STATUS_SUBCOMMAND = new StatusCommand();
+    private static final LeviathanSubcommand STATS_SUBCOMMAND = new StatsCommand();
+    private static final LeviathanSubcommand METRICS_SUBCOMMAND = new MetricsCommand();
     private static final Map<String, LeviathanSubcommand> SUBCOMMANDS = Util.make(() -> {
         final Map<Set<String>, LeviathanSubcommand> commands = new HashMap<>();
 
         commands.put(Set.of(ReloadCommand.LITERAL_ARGUMENT), RELOAD_SUBCOMMAND);
         commands.put(Set.of(VersionCommand.LITERAL_ARGUMENT), VERSION_SUBCOMMAND);
         commands.put(Set.of(MSPTCommand.LITERAL_ARGUMENT), MSPT_SUBCOMMAND);
+        commands.put(Set.of(RuntimeCommand.LITERAL_ARGUMENT), RUNTIME_SUBCOMMAND);
+        commands.put(Set.of(StatusCommand.LITERAL_ARGUMENT), STATUS_SUBCOMMAND);
+        commands.put(Set.of(StatsCommand.LITERAL_ARGUMENT), STATS_SUBCOMMAND);
+        commands.put(Set.of(MetricsCommand.LITERAL_ARGUMENT), METRICS_SUBCOMMAND);
 
         return commands.entrySet().stream()
             .flatMap(entry -> entry.getKey().stream().map(s -> Map.entry(s, entry.getValue())))

@@ -68,6 +68,9 @@ public abstract class ConfigModule extends LeviathanConfig {
         } catch (Exception e) {
             LeviathanConfig.LOGGER.error("Failed to save config file!", e);
         }
+
+        // Initialize Observability system after config validation
+        dev.vospek.leviathan.observability.ObservabilityBootstrap.initialize();
     }
 
     private static List<Field> getAnnotatedStaticFields(Class<?> clazz, Class<? extends Annotation> annotation) {
