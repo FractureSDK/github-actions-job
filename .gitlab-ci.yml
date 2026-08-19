@@ -96,7 +96,7 @@ release:
         --name "Leviathan ${MC_VERSION}" \
         --tag-name "ver-${MC_VERSION}" \
         --ref "${CI_COMMIT_REF_NAME}" \
-        --description-file release_notes.md \
+        --description release_notes.md \
         --assets-link "{\"name\":\"$JAR_NAME\",\"url\":\"${CI_API_V4_URL}/projects/${CI_PROJECT_ID}/packages/generic/leviathan/${MC_VERSION}/$JAR_NAME\"}"
   artifacts:
     when: always
