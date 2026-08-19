@@ -160,7 +160,12 @@ public final class LeviathanLogger {
                     .withFilePattern(fileName + ".%i.gz")
                     .setLayout(layout)
                     .withPolicy(SizeBasedTriggeringPolicy.createPolicy("10MB"))
-                    .withStrategy(DefaultRolloverStrategy.createStrategy("5", "1", "5", "true", null, false, config))
+                    .withStrategy(DefaultRolloverStrategy.newBuilder()
+                        .withMax("5")
+                        .withMin("1")
+                        .withFileIndex("5")
+                        .withConfig(config)
+                        .build())
                     .setConfiguration(config)
                     .build();
 
