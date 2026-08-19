@@ -102,11 +102,10 @@ public final class ObservabilityBootstrap {
 
         // 记录诊断日志
         DiagnosticsLogger.logTickMetrics(
-            tm.getCurrentTPS(),
-            tm.getCurrentMSPT(),
-            tm.getP50(),
-            tm.getP95(),
-            tm.getP99(),
+            tm.getSyncedTPS(),
+            tm.getSyncedMSPT(),
+            tm.getSyncedMinMSPT(),
+            tm.getSyncedMaxMSPT(),
             tm.getOverrunCount(),
             tm.getSpikeCount()
         );

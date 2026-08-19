@@ -81,9 +81,9 @@ public final class TickMetrics {
      */
     public void syncFromServer(MinecraftServer server) {
         // 同步服务器级指标
-        syncTickData(server.tickTimes5s, "5s");
-        syncTickData(server.tickTimes10s, "10s");
-        syncTickData(server.tickTimes1m, "1m");
+        syncTickData(server, server.tickTimes5s, "5s");
+        syncTickData(server, server.tickTimes10s, "10s");
+        syncTickData(server, server.tickTimes1m, "1m");
 
         // 同步世界级指标
         for (net.minecraft.server.level.ServerLevel level : server.getAllLevels()) {
@@ -94,13 +94,17 @@ public final class TickMetrics {
         }
     }
 
-    private void syncTickData(TickData tickData, String suffix) {
-        TickData.TickReportData report = tickData.generateTickReport(null, System.nanoTime(), MinecraftServer.getServer().tickRateManager().nanosecondsPerTick());
+    private void syncTickData(MinecraftServer server, TickData tickData, String suffix) {
+        TickData.TickReportData report = tickData.generateTickReport(null, System.nanoTime(), server.tickRateManager().nanosecondsPerTick());
         if (report != null) {
-            double[] values = serverSyncCache.computeIfAbsent(suffix, k -> new double[3]);
-            values[0] = report.timePerTickData().segmentAll().average() * 1.0E-6;
-            values[1] = report.timePerTickData().segmentAll().least() * 1.0E-6;
-            values[2] = report.timePerTickData().segmentAll().greatest() * 1.0E-6;
+            // 每次写入新数组并通过 put 发布，保证读取线程看到一致快照
+            var segment = report.timePerTickData().segmentAll();
+            double[] values = {
+                segment.average() * 1.0E-6,
+                segment.least() * 1.0E-6,
+                segment.greatest() * 1.0E-6
+            };
+            serverSyncCache.put(suffix, values);
 
             REGISTRY.gaugeDouble("tick.server." + suffix + ".avg", () -> { double[] v = serverSyncCache.get(suffix); return v != null ? v[0] : 0.0; });
             REGISTRY.gaugeDouble("tick.server." + suffix + ".min", () -> { double[] v = serverSyncCache.get(suffix); return v != null ? v[1] : 0.0; });
@@ -108,14 +112,48 @@ public final class TickMetrics {
         }
     }
 
+    /**
+     * 获取 5s 同步窗口的平均 MSPT（毫秒），无数据时返回 0
+     */
+    public double getSyncedMSPT() {
+        double[] v = serverSyncCache.get("5s");
+        return v != null ? v[0] : 0.0;
+    }
+
+    /**
+     * 获取 5s 同步窗口的最小 MSPT（毫秒），无数据时返回 0
+     */
+    public double getSyncedMinMSPT() {
+        double[] v = serverSyncCache.get("5s");
+        return v != null ? v[1] : 0.0;
+    }
+
+    /**
+     * 获取 5s 同步窗口的最大 MSPT（毫秒），无数据时返回 0
+     */
+    public double getSyncedMaxMSPT() {
+        double[] v = serverSyncCache.get("5s");
+        return v != null ? v[2] : 0.0;
+    }
+
+    /**
+     * 基于 5s 同步窗口计算 TPS，无数据时返回 20.0
+     */
+    public double getSyncedTPS() {
+        double[] v = serverSyncCache.get("5s");
+        double avgMs = v != null ? v[0] : 0.0;
+        return avgMs > 0 ? Math.min(1000.0 / avgMs, 20.0) : 20.0;
+    }
+
     private double calculateTPS() {
         long count = serverTickTimer.getCount();
-        if (count == 0) return 20.0;
+        if (count == 0) return getSyncedTPS();
         double avgMs = serverTickTimer.getMean();
         return avgMs > 0 ? Math.min(1000.0 / avgMs, 20.0) : 20.0;
     }
 
     private double calculateMSPT() {
+        if (serverTickTimer.getCount() == 0) return getSyncedMSPT();
         return serverTickTimer.getMean();
     }
 
@@ -176,7 +214,6 @@ public final class TickMetrics {
         }
 
         public void syncFromTickData(MinecraftServer.TickTimes tickTimes, String suffix) {
-            double[] values = syncCache.computeIfAbsent(suffix, k -> new double[3]);
             long[] times = tickTimes.getTimes();
             long min = Long.MAX_VALUE;
             long max = 0L;
@@ -191,9 +228,12 @@ public final class TickMetrics {
                 }
             }
             if (count > 0) {
-                values[0] = (total / (double) count) * 1.0E-6;
-                values[1] = min * 1.0E-6;
-                values[2] = max * 1.0E-6;
+                double[] values = {
+                    (total / (double) count) * 1.0E-6,
+                    min * 1.0E-6,
+                    max * 1.0E-6
+                };
+                syncCache.put(suffix, values);
             }
 
             REGISTRY.gaugeDouble("tick.world." + worldName + "." + suffix + ".avg", () -> { double[] v = syncCache.get(suffix); return v != null ? v[0] : 0.0; });

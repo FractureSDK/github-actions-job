@@ -219,6 +219,7 @@ public final class MemoryMetrics {
 
         for (MemoryPoolMXBean pool : pools) {
             MemoryUsage usage = pool.getUsage();
+            if (usage == null) continue; // 某些池在无效/未使用时返回 null
             result.add(new MemoryPoolInfo(
                 pool.getName(),
                 pool.getType().toString(),

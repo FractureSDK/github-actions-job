@@ -125,16 +125,16 @@ public final class DiagnosticsLogger {
     /**
      * 记录 Tick 性能数据
      * <p>
-     * 所有时间参数均为微秒，内部转换为毫秒记录
+     * 时间参数均为毫秒，来自同步的 tickTimes 窗口（avg/min/max）。
+     * overruns/spikes 来自计数器，在 tick 钩子接入前为 0。
      */
-    public static void logTickMetrics(double tps, double msptUs, double p50Us, double p95Us, double p99Us, long overruns, long spikes) {
+    public static void logTickMetrics(double tps, double avgMs, double minMs, double maxMs, long overruns, long spikes) {
         logStructured("performance", Map.of(
             "type", "tick_metrics",
             "tps", String.format("%.2f", tps),
-            "mspt", String.format("%.2f", msptUs / 1000.0),
-            "p50_ms", String.format("%.2f", p50Us / 1000.0),
-            "p95_ms", String.format("%.2f", p95Us / 1000.0),
-            "p99_ms", String.format("%.2f", p99Us / 1000.0),
+            "mspt_avg_ms", String.format("%.2f", avgMs),
+            "mspt_min_ms", String.format("%.2f", minMs),
+            "mspt_max_ms", String.format("%.2f", maxMs),
             "overruns", overruns,
             "spikes", spikes
         ));

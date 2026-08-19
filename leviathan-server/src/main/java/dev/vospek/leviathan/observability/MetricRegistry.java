@@ -494,7 +494,7 @@ public final class MetricRegistry {
         /**
          * 获取当前速率（每秒）
          */
-        public double getRate() {
+        public synchronized double getRate() {
             long now = System.nanoTime();
             long elapsedNanos = now - lastTickTime;
             if (elapsedNanos <= 0) return 0;
