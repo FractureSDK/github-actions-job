@@ -53,7 +53,6 @@ publish-api:
     - build
   rules:
     - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
-      when: manual
   before_script:
     - apt-get update && apt-get install -y --no-install-recommends git ca-certificates
     - git config --global user.email "ci@gitlab.com"
@@ -76,7 +75,6 @@ release:
     - build
   rules:
     - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
-      when: manual
   before_script:
     - apk add --no-cache git curl bash coreutils
     - curl --location "https://gitlab.com/api/v4/projects/gitlab-org%2Frelease-cli/packages/generic/release-cli/latest/release-cli-linux-amd64" --output /usr/local/bin/release-cli && chmod +x /usr/local/bin/release-cli
@@ -93,8 +91,8 @@ release:
         "${CI_API_V4_URL}/projects/${CI_PROJECT_ID}/packages/generic/leviathan/${MC_VERSION}/$JAR_NAME"
     - |
       release-cli create \
-        --name "Leviathan ${MC_VERSION}" \
-        --tag-name "ver-${MC_VERSION}" \
+        --name "Leviathan ${MC_VERSION} build ${BUILD_NUMBER}" \
+        --tag-name "ver-${MC_VERSION}-${BUILD_NUMBER}" \
         --ref "${CI_COMMIT_REF_NAME}" \
         --description release_notes.md \
         --assets-link "{\"name\":\"$JAR_NAME\",\"url\":\"${CI_API_V4_URL}/projects/${CI_PROJECT_ID}/packages/generic/leviathan/${MC_VERSION}/$JAR_NAME\"}"

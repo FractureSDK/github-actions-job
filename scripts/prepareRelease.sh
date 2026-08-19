@@ -6,7 +6,7 @@ IS_UNSUPPORTED=false
 IS_DEV=true
 
 JAR_NAME="leviathan-${MC_VERSION}"
-CURRENT_TAG="ver-${MC_VERSION}"
+CURRENT_TAG="ver-${MC_VERSION}-${BUILD_NUMBER}"
 RELEASE_NOTES="release_notes.md"
 
 # Rename Leviathan jar
