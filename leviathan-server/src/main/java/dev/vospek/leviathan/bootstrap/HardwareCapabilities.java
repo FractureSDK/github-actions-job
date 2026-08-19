@@ -303,6 +303,14 @@ public final class HardwareCapabilities {
         }
     }
 
+    /**
+     * 静态方法检查是否为 Linux
+     */
+    private static boolean isLinux() {
+        String osName = System.getProperty("os.name").toLowerCase(Locale.ROOT);
+        return osName.contains("linux");
+    }
+
     private static void logCapabilities(HardwareCapabilities caps) {
         LOGGER.info("━━━━━━━━━━━━━ Leviathan Hardware Capabilities ━━━━━━━━━━━━━");
         LOGGER.info("Logical CPUs:      {}", caps.logicalProcessors);

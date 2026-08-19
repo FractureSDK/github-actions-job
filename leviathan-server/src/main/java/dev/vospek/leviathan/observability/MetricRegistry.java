@@ -7,6 +7,7 @@ import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.DoubleSupplier;
 import java.util.function.LongSupplier;
+import java.util.function.Supplier;
 
 /**
  * 统一指标注册中心
@@ -63,7 +64,7 @@ public final class MetricRegistry {
     /**
      * 注册数值型 Gauge
      */
-    public <T extends Number> Gauge<T> gauge(String name, DoubleSupplier supplier) {
+    public <T extends Number> Gauge<T> gauge(String name, Supplier<T> supplier) {
         String key = buildKey(name);
         @SuppressWarnings("unchecked")
         Gauge<T> gauge = (Gauge<T>) gauges.computeIfAbsent(key, k -> new Gauge<>(supplier));
@@ -71,16 +72,30 @@ public final class MetricRegistry {
     }
 
     /**
+     * 注册双精度 Gauge
+     */
+    public Gauge<Double> gaugeDouble(String name, DoubleSupplier supplier) {
+        return gauge(name, () -> supplier.getAsDouble());
+    }
+
+    /**
      * 注册长整型 Gauge
      */
     public Gauge<Long> gaugeLong(String name, LongSupplier supplier) {
-        return gauge(name, supplier::getAsLong);
+        return gauge(name, () -> supplier.getAsLong());
+    }
+
+    /**
+     * 注册整型 Gauge
+     */
+    public Gauge<Integer> gaugeInt(String name, java.util.function.IntSupplier supplier) {
+        return gauge(name, () -> supplier.getAsInt());
     }
 
     /**
      * 注册带标签的 Gauge
      */
-    public <T extends Number> Gauge<T> gauge(String name, DoubleSupplier supplier, String... tags) {
+    public <T extends Number> Gauge<T> gauge(String name, Supplier<T> supplier, String... tags) {
         String key = buildKey(name, tags);
         @SuppressWarnings("unchecked")
         Gauge<T> gauge = (Gauge<T>) gauges.computeIfAbsent(key, k -> new Gauge<>(supplier));
@@ -218,25 +233,30 @@ public final class MetricRegistry {
      */
     public static final class Gauge<T extends Number> {
         private final String name;
-        private final DoubleSupplier supplier;
+        private final Supplier<T> supplier;
 
-        private Gauge(DoubleSupplier supplier) {
+        private Gauge(Supplier<T> supplier) {
             this.name = "";
             this.supplier = supplier;
         }
 
         public T getValue() {
-            @SuppressWarnings("unchecked")
-            T value = (T) (supplier != null ? supplier.getAsDouble() : 0);
-            return value;
+            return supplier != null ? supplier.get() : null;
         }
 
         public double getAsDouble() {
-            return supplier != null ? supplier.getAsDouble() : 0;
+            T value = getValue();
+            return value != null ? value.doubleValue() : 0;
         }
 
         public long getAsLong() {
-            return supplier != null ? (long) supplier.getAsDouble() : 0;
+            T value = getValue();
+            return value != null ? value.longValue() : 0;
+        }
+
+        public int getAsInt() {
+            T value = getValue();
+            return value != null ? value.intValue() : 0;
         }
 
         @Override

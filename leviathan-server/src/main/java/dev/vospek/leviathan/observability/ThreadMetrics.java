@@ -24,17 +24,17 @@ public final class ThreadMetrics {
     private final MetricRegistry.Gauge<Integer> peakThreadCount;
     private final MetricRegistry.Gauge<Integer> daemonThreadCount;
     private final MetricRegistry.Gauge<Long> totalThreadCpuTime;
-    private final MetricRegistry.Gauge<Map<String, Long>> threadStateDistribution;
+    private final MetricRegistry.Gauge<Integer> threadStateCount; // Track runnable count as example
 
     // 线程名 -> CPU 时间（用于热点分析）
     private final Map<String, Long> threadCpuTimes = new ConcurrentHashMap<>();
 
     private ThreadMetrics() {
-        this.threadCount = REGISTRY.gauge("thread.count", THREAD_BEAN::getThreadCount);
-        this.peakThreadCount = REGISTRY.gauge("thread.peak", THREAD_BEAN::getPeakThreadCount);
-        this.daemonThreadCount = REGISTRY.gauge("thread.daemon", THREAD_BEAN::getDaemonThreadCount);
-        this.totalThreadCpuTime = REGISTRY.gaugeLong("thread.total_cpu_ns", THREAD_BEAN::getTotalThreadCpuTime);
-        this.threadStateDistribution = REGISTRY.gauge("thread.states", this::getThreadStateDistribution);
+        this.threadCount = REGISTRY.gaugeInt("thread.count", THREAD_BEAN::getThreadCount);
+        this.peakThreadCount = REGISTRY.gaugeInt("thread.peak", THREAD_BEAN::getPeakThreadCount);
+        this.daemonThreadCount = REGISTRY.gaugeInt("thread.daemon", THREAD_BEAN::getDaemonThreadCount);
+        this.totalThreadCpuTime = REGISTRY.gaugeLong("thread.total_cpu_ns", this::getTotalThreadCpuTime);
+        this.threadStateCount = REGISTRY.gaugeInt("thread.runnable_count", this::getRunnableThreadCount);
     }
 
     private static final class Holder {
@@ -50,6 +50,32 @@ public final class ThreadMetrics {
      */
     public void recordThreadCpuTime(String threadName, long cpuTimeNanos) {
         threadCpuTimes.put(threadName, cpuTimeNanos);
+    }
+
+    /**
+     * 获取总线程 CPU 时间
+     */
+    private long getTotalThreadCpuTime() {
+        try {
+            Long time = (Long) THREAD_BEAN.getClass().getMethod("getTotalThreadCpuTime").invoke(THREAD_BEAN);
+            return time != null ? time : -1L;
+        } catch (Exception e) {
+            return -1L;
+        }
+    }
+
+    /**
+     * 获取可运行线程数
+     */
+    private int getRunnableThreadCount() {
+        ThreadInfo[] infos = THREAD_BEAN.dumpAllThreads(false, false);
+        int count = 0;
+        for (ThreadInfo info : infos) {
+            if (info.getThreadState() == Thread.State.RUNNABLE) {
+                count++;
+            }
+        }
+        return count;
     }
 
     /**
@@ -95,11 +121,12 @@ public final class ThreadMetrics {
 
     // ==================== 便捷查询 ====================
 
-    public int getThreadCount() { return threadCount.getAsLong().intValue(); }
-    public int getPeakThreadCount() { return peakThreadCount.getAsLong().intValue(); }
-    public int getDaemonThreadCount() { return daemonThreadCount.getAsLong().intValue(); }
-    public long getTotalThreadCpuTime() { return totalThreadCpuTime.getAsLong(); }
-    public Map<String, Long> getThreadStates() { return threadStateDistribution.getValue(); }
+    public int getThreadCount() { return threadCount.getAsInt(); }
+    public int getPeakThreadCount() { return peakThreadCount.getAsInt(); }
+    public int getDaemonThreadCount() { return daemonThreadCount.getAsInt(); }
+    public long getTotalThreadCpuTimeNs() { return totalThreadCpuTime.getAsLong(); }
+    public int getRunnableThreadCountGauge() { return threadStateCount.getAsInt(); }
+    public Map<String, Long> getThreadStates() { return getThreadStateDistribution(); }
 
     public record ThreadCpuInfo(
         String name,

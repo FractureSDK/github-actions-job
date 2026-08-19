@@ -48,7 +48,7 @@ public final class RuntimeCommand extends PermissionedLeviathanSubcommand {
             .build());
 
         // Java Runtime
-        sender.sendMessage(text("").build());
+        sender.sendMessage(text(""));
         sender.sendMessage(text("▸ Java Runtime").color(AQUA));
         sender.sendMessage(text("  Version: ").color(GRAY).append(text(runtime.javaVersion).color(WHITE)));
         sender.sendMessage(text("  Vendor:  ").color(GRAY).append(text(runtime.javaVendor).color(WHITE)));
@@ -56,14 +56,14 @@ public final class RuntimeCommand extends PermissionedLeviathanSubcommand {
         sender.sendMessage(text("  Home:    ").color(GRAY).append(text(runtime.javaHome).color(WHITE)));
 
         // OS & Architecture
-        sender.sendMessage(text("").build());
+        sender.sendMessage(text(""));
         sender.sendMessage(text("▸ Operating System").color(AQUA));
         sender.sendMessage(text("  OS:      ").color(GRAY).append(text(runtime.osName + " " + runtime.osVersion).color(WHITE)));
         sender.sendMessage(text("  Arch:    ").color(GRAY).append(text(runtime.architecture).color(WHITE)));
         sender.sendMessage(text("  Kernel:  ").color(GRAY).append(text(runtime.kernelVersion).color(WHITE)));
 
         // CPU
-        sender.sendMessage(text("").build());
+        sender.sendMessage(text(""));
         sender.sendMessage(text("▸ CPU").color(AQUA));
         sender.sendMessage(text("  Logical:     ").color(GRAY).append(text(String.valueOf(hardware.logicalProcessors)).color(WHITE)));
         sender.sendMessage(text("  Physical:    ").color(GRAY).append(text(String.valueOf(hardware.physicalProcessors)).color(WHITE)));
@@ -74,7 +74,7 @@ public final class RuntimeCommand extends PermissionedLeviathanSubcommand {
         sender.sendMessage(text("  AVX-512:     ").color(GRAY).append(text(hardware.hasAVX512 ? "yes" : "no").color(hardware.hasAVX512 ? GREEN : RED)));
 
         // Memory
-        sender.sendMessage(text("").build());
+        sender.sendMessage(text(""));
         sender.sendMessage(text("▸ Memory").color(AQUA));
         sender.sendMessage(text("  Physical:    ").color(GRAY).append(text(formatBytes(hardware.physicalMemoryBytes)).color(WHITE)));
         sender.sendMessage(text("  Max Heap:    ").color(GRAY).append(text(formatBytes(hardware.maxHeapBytes)).color(WHITE)));
@@ -89,7 +89,7 @@ public final class RuntimeCommand extends PermissionedLeviathanSubcommand {
         sender.sendMessage(text("  Non-Heap:    ").color(GRAY).append(text(formatBytes(nonHeapUsage.getUsed())).color(WHITE)));
 
         // JVM Arguments
-        sender.sendMessage(text("").build());
+        sender.sendMessage(text(""));
         sender.sendMessage(text("▸ JVM Arguments").color(AQUA));
         for (String arg : runtime.inputArguments) {
             sender.sendMessage(text("  ").color(GRAY).append(text(arg).color(GRAY)));

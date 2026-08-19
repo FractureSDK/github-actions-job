@@ -30,7 +30,7 @@ public final class MetricsCommand extends PermissionedLeviathanSubcommand {
         }
 
         String subCmd = args[0].toLowerCase();
-        return switch (subCmd) {
+        switch (subCmd) {
             case "counters" -> showCounters(sender);
             case "gauges" -> showGauges(sender);
             case "histograms" -> showHistograms(sender);
@@ -40,9 +40,10 @@ public final class MetricsCommand extends PermissionedLeviathanSubcommand {
             default -> {
                 sender.sendMessage(text("Unknown subcommand: " + subCmd).color(RED));
                 sender.sendMessage(text("Usage: /leviathan metrics [counters|gauges|histograms|timers|rates|snapshot]").color(GRAY));
-                yield false;
+                return false;
             }
-        };
+        }
+        return true;
     }
 
     private void showOverview(CommandSender sender) {

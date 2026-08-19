@@ -21,17 +21,10 @@ public final class CpuMetrics {
     private final MetricRegistry.Gauge<Integer> availableProcessors;
 
     private CpuMetrics() {
-        this.processCpuLoad = REGISTRY.gauge("cpu.process.load", OS_BEAN::getProcessCpuLoad);
-        this.systemCpuLoad = REGISTRY.gauge("cpu.system.load", OS_BEAN::getSystemLoadAverage);
-        this.processCpuTime = REGISTRY.gaugeLong("cpu.process.time", () -> {
-            // getProcessCpuTime 可能不被所有 JDK 支持
-            try {
-                return (Long) OS_BEAN.getClass().getMethod("getProcessCpuTime").invoke(OS_BEAN);
-            } catch (Exception e) {
-                return -1L;
-            }
-        });
-        this.availableProcessors = REGISTRY.gauge("cpu.available", () -> Runtime.getRuntime().availableProcessors());
+        this.processCpuLoad = REGISTRY.gaugeDouble("cpu.process.load", () -> getProcessCpuLoad());
+        this.systemCpuLoad = REGISTRY.gaugeDouble("cpu.system.load", OS_BEAN::getSystemLoadAverage);
+        this.processCpuTime = REGISTRY.gaugeLong("cpu.process.time", this::getProcessCpuTime);
+        this.availableProcessors = REGISTRY.gaugeInt("cpu.available", Runtime.getRuntime()::availableProcessors);
     }
 
     private static final class Holder {
@@ -52,19 +45,29 @@ public final class CpuMetrics {
     // ==================== 便捷查询 ====================
 
     public double getProcessCpuLoad() {
-        return processCpuLoad.getAsDouble();
+        try {
+            Double load = (Double) OS_BEAN.getClass().getMethod("getProcessCpuLoad").invoke(OS_BEAN);
+            return load != null ? load : 0.0;
+        } catch (Exception e) {
+            return 0.0;
+        }
     }
 
     public double getSystemCpuLoad() {
-        return systemCpuLoad.getAsDouble();
+        return OS_BEAN.getSystemLoadAverage();
     }
 
     public long getProcessCpuTime() {
-        return processCpuTime.getAsLong();
+        try {
+            Long time = (Long) OS_BEAN.getClass().getMethod("getProcessCpuTime").invoke(OS_BEAN);
+            return time != null ? time : -1L;
+        } catch (Exception e) {
+            return -1L;
+        }
     }
 
     public int getAvailableProcessors() {
-        return availableProcessors.getAsLong().intValue();
+        return availableProcessors.getAsInt();
     }
 
     /**

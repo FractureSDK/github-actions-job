@@ -4,6 +4,7 @@ import java.lang.management.ManagementFactory;
 import java.lang.management.MemoryMXBean;
 import java.lang.management.MemoryPoolMXBean;
 import java.lang.management.MemoryUsage;
+import java.lang.management.OperatingSystemMXBean;
 import java.util.List;
 
 /**
@@ -46,15 +47,15 @@ public final class MemoryMetrics {
 
     private MemoryMetrics() {
         // Heap
-        this.heapUsed = REGISTRY.gauge("memory.heap.used", () -> MEMORY_BEAN.getHeapMemoryUsage().getUsed());
-        this.heapMax = REGISTRY.gauge("memory.heap.max", () -> MEMORY_BEAN.getHeapMemoryUsage().getMax());
-        this.heapCommitted = REGISTRY.gauge("memory.heap.committed", () -> MEMORY_BEAN.getHeapMemoryUsage().getCommitted());
-        this.heapUsagePercent = REGISTRY.gauge("memory.heap.usage_percent", this::calculateHeapUsagePercent);
+        this.heapUsed = REGISTRY.gaugeLong("memory.heap.used", () -> MEMORY_BEAN.getHeapMemoryUsage().getUsed());
+        this.heapMax = REGISTRY.gaugeLong("memory.heap.max", () -> MEMORY_BEAN.getHeapMemoryUsage().getMax());
+        this.heapCommitted = REGISTRY.gaugeLong("memory.heap.committed", () -> MEMORY_BEAN.getHeapMemoryUsage().getCommitted());
+        this.heapUsagePercent = REGISTRY.gaugeDouble("memory.heap.usage_percent", this::calculateHeapUsagePercent);
 
         // Non-Heap
-        this.nonHeapUsed = REGISTRY.gauge("memory.nonheap.used", () -> MEMORY_BEAN.getNonHeapMemoryUsage().getUsed());
-        this.nonHeapMax = REGISTRY.gauge("memory.nonheap.max", () -> MEMORY_BEAN.getNonHeapMemoryUsage().getMax());
-        this.nonHeapCommitted = REGISTRY.gauge("memory.nonheap.committed", () -> MEMORY_BEAN.getNonHeapMemoryUsage().getCommitted());
+        this.nonHeapUsed = REGISTRY.gaugeLong("memory.nonheap.used", () -> MEMORY_BEAN.getNonHeapMemoryUsage().getUsed());
+        this.nonHeapMax = REGISTRY.gaugeLong("memory.nonheap.max", () -> MEMORY_BEAN.getNonHeapMemoryUsage().getMax());
+        this.nonHeapCommitted = REGISTRY.gaugeLong("memory.nonheap.committed", () -> MEMORY_BEAN.getNonHeapMemoryUsage().getCommitted());
 
         // Direct Memory (通过 Unsafe 估算)
         this.directMemoryUsed = REGISTRY.gaugeLong("memory.direct.used", this::estimateDirectMemoryUsed);
@@ -63,11 +64,11 @@ public final class MemoryMetrics {
         // GC
         this.gcCount = REGISTRY.counter("gc.total.count");
         this.gcTime = REGISTRY.counter("gc.total.time_ms");
-        this.lastGcDuration = REGISTRY.gaugeLong("gc.last.duration_ms", () -> 0); // 需要 GC 监听器更新
-        this.gcCpuPercent = REGISTRY.gauge("gc.cpu_percent", this::calculateGcCpuPercent);
+        this.lastGcDuration = REGISTRY.gaugeLong("gc.last.duration_ms", () -> 0L); // 需要 GC 监听器更新
+        this.gcCpuPercent = REGISTRY.gaugeDouble("gc.cpu_percent", this::calculateGcCpuPercent);
 
         // Allocation Rate
-        this.allocationRate = REGISTRY.gauge("memory.allocation_rate_mb_s", this::calculateAllocationRate);
+        this.allocationRate = REGISTRY.gaugeDouble("memory.allocation_rate_mb_s", this::calculateAllocationRate);
 
         // 初始化基线
         this.lastHeapUsed = MEMORY_BEAN.getHeapMemoryUsage().getUsed();

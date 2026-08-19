@@ -106,7 +106,7 @@ public final class StatsCommand extends PermissionedLeviathanSubcommand {
         // Per-world if parallel ticking enabled
         if (SparklyPaperParallelWorldTicking.enabled) {
             for (net.minecraft.server.level.ServerLevel level : server.getAllLevels()) {
-                double[] worldTPS = getTPS(level.tickTimes5s);
+                double[] worldTPS = getTPS(level.tickTimes5s.getTimes());
                 sender.sendMessage(text("    " + level.getWorld().getName() + ": ").color(GRAY)
                     .append(text(DF.format(worldTPS[0])).color(getTPSColor(worldTPS[0])))
                     .append(text(" TPS  (").color(GRAY))
@@ -140,11 +140,21 @@ public final class StatsCommand extends PermissionedLeviathanSubcommand {
             .append(text(DF.format(osBean.getSystemLoadAverage())).color(WHITE))
             .build());
         sender.sendMessage(text("  Process CPU: ").color(GRAY)
-            .append(text(DF.format(osBean.getProcessCpuLoad() * 100) + "%").color(WHITE))
+            .append(text(getProcessCpuPercent(osBean) + "%").color(WHITE))
             .build());
         sender.sendMessage(text("  Available:   ").color(GRAY)
             .append(text(String.valueOf(Runtime.getRuntime().availableProcessors()) + " cores").color(WHITE))
             .build());
+    }
+
+    private double getProcessCpuPercent(OperatingSystemMXBean osBean) {
+        try {
+            return osBean.getClass().getMethod("getProcessCpuLoad").invoke(osBean) != null
+                ? ((double) osBean.getClass().getMethod("getProcessCpuLoad").invoke(osBean)) * 100.0
+                : 0.0;
+        } catch (Exception e) {
+            return 0.0;
+        }
     }
 
     private void displayMemory(CommandSender sender) {
@@ -203,8 +213,18 @@ public final class StatsCommand extends PermissionedLeviathanSubcommand {
             .append(text(String.valueOf(threadMXBean.getDaemonThreadCount())).color(WHITE))
             .build());
         sender.sendMessage(text("  Total CPU:").color(GRAY)
-            .append(text(DF.format(threadMXBean.getTotalThreadCpuTime() / 1_000_000_000.0) + " s").color(WHITE))
+            .append(text(DF.format(getTotalThreadCpuTimeSeconds(threadMXBean)) + " s").color(WHITE))
             .build());
+    }
+
+    private double getTotalThreadCpuTimeSeconds(ThreadMXBean threadMXBean) {
+        try {
+            return threadMXBean.getClass().getMethod("getTotalThreadCpuTime").invoke(threadMXBean) != null
+                ? ((long) threadMXBean.getClass().getMethod("getTotalThreadCpuTime").invoke(threadMXBean)) / 1_000_000_000.0
+                : 0.0;
+        } catch (Exception e) {
+            return 0.0;
+        }
     }
 
     private void displayCounts(CommandSender sender, MinecraftServer server) {

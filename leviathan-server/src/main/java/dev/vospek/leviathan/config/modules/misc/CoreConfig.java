@@ -3,6 +3,7 @@ package dev.vospek.leviathan.config.modules.misc;
 import dev.vospek.leviathan.bootstrap.HardwareCapabilities;
 import dev.vospek.leviathan.config.ConfigModule;
 import dev.vospek.leviathan.config.LeviathanConfig;
+import dev.vospek.leviathan.config.LeviathanGlobalConfig;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -43,86 +44,88 @@ public class CoreConfig extends ConfigModule {
 
     @Override
     public void onLoaded() {
+        LeviathanGlobalConfig global = globalConfig;
+
         // Runtime mode
-        runtimeMode = globalConfig.getString(basePath() + ".runtime.mode", runtimeMode,
-            pickStringRegionBased(
+        runtimeMode = global.getString(basePath() + ".runtime.mode", runtimeMode,
+            global.pickStringRegionBased(
                 "Runtime mode: normal, safe (safe mode disables experimental features)",
                 "运行时模式: normal, safe (安全模式禁用实验性功能)"));
 
         // Core toggles
-        diagnosticsEnabled = globalConfig.getBoolean(basePath() + ".diagnostics.enabled", diagnosticsEnabled,
-            pickStringRegionBased(
+        diagnosticsEnabled = global.getBoolean(basePath() + ".diagnostics.enabled", diagnosticsEnabled,
+            global.pickStringRegionBased(
                 "Enable diagnostics system",
                 "启用诊断系统"));
 
-        observabilityEnabled = globalConfig.getBoolean(basePath() + ".observability.enabled", observabilityEnabled,
-            pickStringRegionBased(
+        observabilityEnabled = global.getBoolean(basePath() + ".observability.enabled", observabilityEnabled,
+            global.pickStringRegionBased(
                 "Enable observability/metrics system",
                 "启用可观测性/指标系统"));
 
-        benchmarkEnabled = globalConfig.getBoolean(basePath() + ".benchmark.enabled", benchmarkEnabled,
-            pickStringRegionBased(
+        benchmarkEnabled = global.getBoolean(basePath() + ".benchmark.enabled", benchmarkEnabled,
+            global.pickStringRegionBased(
                 "Enable benchmark framework",
                 "启用基准测试框架"));
 
-        experimentalEnabled = globalConfig.getBoolean(basePath() + ".experimental.enabled", experimentalEnabled,
-            pickStringRegionBased(
+        experimentalEnabled = global.getBoolean(basePath() + ".experimental.enabled", experimentalEnabled,
+            global.pickStringRegionBased(
                 "Enable experimental features globally",
                 "全局启用实验性功能"));
 
         // Feature flags - 四态: disabled, safe, enabled, experimental
-        featureLinearStorage = globalConfig.getString(basePath() + ".features.linear-storage", featureLinearStorage,
-            pickStringRegionBased(
+        featureLinearStorage = global.getString(basePath() + ".features.linear-storage", featureLinearStorage,
+            global.pickStringRegionBased(
                 "Linear storage feature flag: disabled, safe, enabled, experimental",
                 "线性存储功能标志: disabled, safe, enabled, experimental"));
 
-        featureZstdStorage = globalConfig.getString(basePath() + ".features.zstd-storage", featureZstdStorage,
-            pickStringRegionBased(
+        featureZstdStorage = global.getString(basePath() + ".features.zstd-storage", featureZstdStorage,
+            global.pickStringRegionBased(
                 "Zstd storage feature flag: disabled, safe, enabled, experimental",
                 "Zstd 存储功能标志: disabled, safe, enabled, experimental"));
 
-        featureDAB = globalConfig.getString(basePath() + ".features.dab", featureDAB,
-            pickStringRegionBased(
+        featureDAB = global.getString(basePath() + ".features.dab", featureDAB,
+            global.pickStringRegionBased(
                 "DAB (Delta Area Block) feature flag: disabled, safe, enabled, experimental",
                 "DAB 功能标志: disabled, safe, enabled, experimental"));
 
-        featureAsyncChunk = globalConfig.getString(basePath() + ".features.async-chunk", featureAsyncChunk,
-            pickStringRegionBased(
+        featureAsyncChunk = global.getString(basePath() + ".features.async-chunk", featureAsyncChunk,
+            global.pickStringRegionBased(
                 "Async chunk feature flag: disabled, safe, enabled, experimental",
                 "异步区块功能标志: disabled, safe, enabled, experimental"));
 
-        featureRegionTick = globalConfig.getString(basePath() + ".features.region-tick", featureRegionTick,
-            pickStringRegionBased(
+        featureRegionTick = global.getString(basePath() + ".features.region-tick", featureRegionTick,
+            global.pickStringRegionBased(
                 "Region tick feature flag: disabled, safe, enabled, experimental",
                 "区域 Tick 功能标志: disabled, safe, enabled, experimental"));
 
-        featurePluginAsync = globalConfig.getString(basePath() + ".features.plugin-async", featurePluginAsync,
-            pickStringRegionBased(
+        featurePluginAsync = global.getString(basePath() + ".features.plugin-async", featurePluginAsync,
+            global.pickStringRegionBased(
                 "Plugin async feature flag: disabled, safe, enabled, experimental",
                 "插件异步功能标志: disabled, safe, enabled, experimental"));
 
-        featureHopperSleep = globalConfig.getString(basePath() + ".features.hopper-sleep", featureHopperSleep,
-            pickStringRegionBased(
+        featureHopperSleep = global.getString(basePath() + ".features.hopper-sleep", featureHopperSleep,
+            global.pickStringRegionBased(
                 "Hopper sleep feature flag: disabled, safe, enabled, experimental",
                 "漏斗休眠功能标志: disabled, safe, enabled, experimental"));
 
-        featureSIMD = globalConfig.getString(basePath() + ".features.simd", featureSIMD,
-            pickStringRegionBased(
+        featureSIMD = global.getString(basePath() + ".features.simd", featureSIMD,
+            global.pickStringRegionBased(
                 "SIMD optimization feature flag: disabled, safe, enabled, experimental",
                 "SIMD 优化功能标志: disabled, safe, enabled, experimental"));
 
-        featureZstdNetwork = globalConfig.getString(basePath() + ".features.zstd-network", featureZstdNetwork,
-            pickStringRegionBased(
+        featureZstdNetwork = global.getString(basePath() + ".features.zstd-network", featureZstdNetwork,
+            global.pickStringRegionBased(
                 "Zstd network compression feature flag: disabled, safe, enabled, experimental",
                 "Zstd 网络压缩功能标志: disabled, safe, enabled, experimental"));
 
-        featureMmap = globalConfig.getString(basePath() + ".features.mmap", featureMmap,
-            pickStringRegionBased(
+        featureMmap = global.getString(basePath() + ".features.mmap", featureMmap,
+            global.pickStringRegionBased(
                 "Memory-mapped I/O feature flag: disabled, safe, enabled, experimental",
                 "内存映射 I/O 功能标志: disabled, safe, enabled, experimental"));
 
-        featureRocksDB = globalConfig.getString(basePath() + ".features.rocksdb", featureRocksDB,
-            pickStringRegionBased(
+        featureRocksDB = global.getString(basePath() + ".features.rocksdb", featureRocksDB,
+            global.pickStringRegionBased(
                 "RocksDB storage feature flag: disabled, safe, enabled, experimental",
                 "RocksDB 存储功能标志: disabled, safe, enabled, experimental"));
     }

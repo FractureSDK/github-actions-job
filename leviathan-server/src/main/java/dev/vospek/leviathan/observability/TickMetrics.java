@@ -1,6 +1,7 @@
 package dev.vospek.leviathan.observability;
 
 import ca.spottedleaf.common.time.TickData;
+import ca.spottedleaf.common.time.TickTimes;
 import net.minecraft.server.MinecraftServer;
 
 import java.lang.management.ManagementFactory;
@@ -95,7 +96,8 @@ public final class TickMetrics {
         }
     }
 
-    private void syncTickData(TickData tickData, String suffix) {
+    private void syncTickData(TickTimes tickTimes, String suffix) {
+        TickData tickData = tickTimes.getTimes();
         TickData.TickReportData report = tickData.generateTickReport(null, System.nanoTime(), MinecraftServer.getServer().tickRateManager().nanosecondsPerTick());
         if (report != null) {
             double avgMs = report.timePerTickData().segmentAll().average() * 1.0E-6;
@@ -173,7 +175,8 @@ public final class TickMetrics {
             if (ms > SPIKE_THRESHOLD_MS) spikeCounter.inc();
         }
 
-        public void syncFromTickData(TickData tickData, String suffix) {
+        public void syncFromTickData(TickTimes tickTimes, String suffix) {
+            TickData tickData = tickTimes.getTimes();
             TickData.TickReportData report = tickData.generateTickReport(null, System.nanoTime(), MinecraftServer.getServer().tickRateManager().nanosecondsPerTick());
             if (report != null) {
                 double avgMs = report.timePerTickData().segmentAll().average() * 1.0E-6;

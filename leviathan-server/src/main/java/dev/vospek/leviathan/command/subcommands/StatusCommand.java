@@ -6,7 +6,6 @@ import dev.vospek.leviathan.bootstrap.RuntimeDetector;
 import dev.vospek.leviathan.command.LeviathanCommand;
 import dev.vospek.leviathan.command.PermissionedLeviathanSubcommand;
 import dev.vospek.leviathan.config.modules.misc.CoreConfig;
-import dev.vospek.leviathan.version.LeviathanVersionFetcher;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.format.NamedTextColor;
 import org.bukkit.command.CommandSender;
@@ -46,7 +45,7 @@ public final class StatusCommand extends PermissionedLeviathanSubcommand {
         }
 
         // Version info
-        String leviathanVersion = LeviathanVersionFetcher.getVersion();
+        String leviathanVersion = getLeviathanVersion();
         String leafVersion = getLeafVersion();
 
         sender.sendMessage(text("━━━━━━━━━━━━━ ").color(GOLD)
@@ -83,7 +82,7 @@ public final class StatusCommand extends PermissionedLeviathanSubcommand {
         sender.sendMessage(text(""));
         sender.sendMessage(text("▸ System Load").color(AQUA));
         sender.sendMessage(text("  CPU Load:   ").color(GRAY).append(text(DF.format(osBean.getSystemLoadAverage())).color(WHITE)));
-        sender.sendMessage(text("  Process CPU:").color(GRAY).append(text(DF.format(osBean.getProcessCpuLoad() * 100) + "%").color(WHITE)));
+        sender.sendMessage(text("  Process CPU:").color(GRAY).append(text(getProcessCpuPercent(osBean) + "%").color(WHITE)));
 
         // Runtime Mode
         sender.sendMessage(text(""));
@@ -99,11 +98,28 @@ public final class StatusCommand extends PermissionedLeviathanSubcommand {
         return true;
     }
 
-    private String getLeafVersion() {
+    private String getLeviathanVersion() {
         try {
-            return io.papermc.paper.ServerBuildInfo.buildInfo().version();
+            return dev.vospek.leviathan.version.LeviathanVersionFetcher.getVersion();
         } catch (Exception e) {
             return "unknown";
+        }
+    }
+
+    private String getLeafVersion() {
+        try {
+            return io.papermc.paper.ServerBuildInfo.buildInfo().mcVersion();
+        } catch (Exception e) {
+            return "unknown";
+        }
+    }
+
+    private double getProcessCpuPercent(OperatingSystemMXBean osBean) {
+        try {
+            Double load = (Double) osBean.getClass().getMethod("getProcessCpuLoad").invoke(osBean);
+            return load != null ? load * 100.0 : 0.0;
+        } catch (Exception e) {
+            return 0.0;
         }
     }
 
