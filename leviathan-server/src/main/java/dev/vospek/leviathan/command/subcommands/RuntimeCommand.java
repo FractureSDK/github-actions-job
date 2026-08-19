@@ -98,16 +98,15 @@ public final class RuntimeCommand extends PermissionedLeviathanSubcommand {
     private static Component header(String title) {
         return text("━━━━━━━━━━━━━ ").color(GOLD)
             .append(text(title).color(YELLOW))
-            .append(text(" ━━━━━━━━━━━━━").color(GOLD))
-            .build();
+            .append(text(" ━━━━━━━━━━━━━").color(GOLD));
     }
 
     private static Component section(String title) {
-        return text("▸ ").color(AQUA).append(text(title).color(AQUA)).build();
+        return text("▸ ").color(AQUA).append(text(title).color(AQUA));
     }
 
     private static Component kv(String key, Component value, NamedTextColor keyColor, NamedTextColor valueColor) {
-        return text(key).color(keyColor).append(value.color(valueColor)).build();
+        return text(key).color(keyColor).append(value.color(valueColor));
     }
 
     private String formatBytes(long bytes) {

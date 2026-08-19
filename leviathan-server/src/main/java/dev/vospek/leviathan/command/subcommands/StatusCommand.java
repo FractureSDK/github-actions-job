@@ -8,6 +8,7 @@ import dev.vospek.leviathan.command.PermissionedLeviathanSubcommand;
 import dev.vospek.leviathan.config.modules.misc.CoreConfig;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.format.NamedTextColor;
+import org.galemc.gale.version.AbstractPaperVersionFetcher;
 import org.bukkit.command.CommandSender;
 import org.bukkit.permissions.PermissionDefault;
 
@@ -97,7 +98,11 @@ public final class StatusCommand extends PermissionedLeviathanSubcommand {
 
     private String getLeviathanVersion() {
         try {
-            return dev.vospek.leviathan.version.LeviathanVersionFetcher.VERSION;
+            var buildInfo = AbstractPaperVersionFetcher.BUILD_INFO;
+            if (buildInfo.buildNumber().isPresent()) {
+                return buildInfo.brandName() + " " + buildInfo.minecraftVersionId() + " (build " + buildInfo.buildNumber().getAsInt() + ")";
+            }
+            return buildInfo.brandName() + " " + buildInfo.minecraftVersionId() + " (dev)";
         } catch (Exception e) {
             return "unknown";
         }
@@ -105,7 +110,8 @@ public final class StatusCommand extends PermissionedLeviathanSubcommand {
 
     private String getLeafVersion() {
         try {
-            return io.papermc.paper.ServerBuildInfo.buildInfo().version();
+            var buildInfo = io.papermc.paper.ServerBuildInfo.buildInfo();
+            return buildInfo.asString(io.papermc.paper.ServerBuildInfo.StringRepresentation.VERSION_SIMPLE);
         } catch (Exception e) {
             return "unknown";
         }
@@ -143,14 +149,12 @@ public final class StatusCommand extends PermissionedLeviathanSubcommand {
 
     private static Component featureLine(String label, boolean enabled) {
         return text(label).color(GRAY)
-            .append(text(enabled ? "enabled" : "disabled").color(enabled ? GREEN : RED))
-            .build();
+            .append(text(enabled ? "enabled" : "disabled").color(enabled ? GREEN : RED));
     }
 
     private static Component featureFlagLine(String label, String flag) {
         return text(label).color(GRAY)
-            .append(text(flag).color(getFeatureColor(flag)))
-            .build();
+            .append(text(flag).color(getFeatureColor(flag)));
     }
 
     private static NamedTextColor getFeatureColor(String flag) {
@@ -165,16 +169,15 @@ public final class StatusCommand extends PermissionedLeviathanSubcommand {
     private static Component header(String title) {
         return text("━━━━━━━━━━━━━ ").color(GOLD)
             .append(text(title).color(YELLOW))
-            .append(text(" ━━━━━━━━━━━━━").color(GOLD))
-            .build();
+            .append(text(" ━━━━━━━━━━━━━").color(GOLD));
     }
 
     private static Component section(String title) {
-        return text("▸ ").color(AQUA).append(text(title).color(AQUA)).build();
+        return text("▸ ").color(AQUA).append(text(title).color(AQUA));
     }
 
     private static Component kv(String key, Component value, NamedTextColor keyColor, NamedTextColor valueColor) {
-        return text(key).color(keyColor).append(value.color(valueColor)).build();
+        return text(key).color(keyColor).append(value.color(valueColor));
     }
 
     private String formatBytes(long bytes) {

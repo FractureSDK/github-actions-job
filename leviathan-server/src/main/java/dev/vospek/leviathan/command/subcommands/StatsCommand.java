@@ -1,6 +1,7 @@
 package dev.vospek.leviathan.command.subcommands;
 
 import ca.spottedleaf.common.time.TickData;
+import ca.spottedleaf.common.time.TickTimes;
 import dev.vospek.leviathan.command.LeviathanCommand;
 import dev.vospek.leviathan.command.PermissionedLeviathanSubcommand;
 import dev.vospek.leviathan.config.modules.async.SparklyPaperParallelWorldTicking;
@@ -70,16 +71,15 @@ public final class StatsCommand extends PermissionedLeviathanSubcommand {
     private static Component header(String title) {
         return text("━━━━━━━━━━━━━ ").color(GOLD)
             .append(text(title).color(YELLOW))
-            .append(text(" ━━━━━━━━━━━━━").color(GOLD))
-            .build();
+            .append(text(" ━━━━━━━━━━━━━").color(GOLD));
     }
 
     private static Component section(String title) {
-        return text("▸ ").color(AQUA).append(text(title).color(AQUA)).build();
+        return text("▸ ").color(AQUA).append(text(title).color(AQUA));
     }
 
     private static Component kv(String key, Component value, NamedTextColor keyColor, NamedTextColor valueColor) {
-        return text(key).color(keyColor).append(value.color(valueColor)).build();
+        return text(key).color(keyColor).append(value.color(valueColor));
     }
 
     private void displayTPS(CommandSender sender, MinecraftServer server) {
@@ -97,7 +97,7 @@ public final class StatsCommand extends PermissionedLeviathanSubcommand {
         // Per-world if parallel ticking enabled
         if (SparklyPaperParallelWorldTicking.enabled) {
             for (net.minecraft.server.level.ServerLevel level : server.getAllLevels()) {
-                double[] worldTPS = getTPS(level.tickTimes5s);
+                double[] worldTPS = getTPS(level.tickTimes5s.getTimes());
                 sender.sendMessage(worldTpsLine(level.getWorld().getName(), worldTPS));
             }
         }
@@ -109,8 +109,7 @@ public final class StatsCommand extends PermissionedLeviathanSubcommand {
             .append(text(DF.format(tps[0])).color(color))
             .append(text("  (").color(GRAY))
             .append(text(DF.format(tps[1]) + " ms").color(color))
-            .append(text(")").color(GRAY))
-            .build();
+            .append(text(")").color(GRAY));
     }
 
     private Component worldTpsLine(String worldName, double[] tps) {
@@ -119,8 +118,7 @@ public final class StatsCommand extends PermissionedLeviathanSubcommand {
             .append(text(DF.format(tps[0])).color(color))
             .append(text(" TPS  (").color(GRAY))
             .append(text(DF.format(tps[1]) + " ms").color(color))
-            .append(text(")").color(GRAY))
-            .build();
+            .append(text(")").color(GRAY));
     }
 
     private double[] getTPS(TickData tickData) {
@@ -180,8 +178,7 @@ public final class StatsCommand extends PermissionedLeviathanSubcommand {
             sender.sendMessage(text("  " + gcBean.getName() + ": ").color(GRAY)
                 .append(text(count + " collections").color(WHITE))
                 .append(text(", ").color(GRAY))
-                .append(text(DF.format(time) + " ms").color(WHITE))
-                .build());
+                .append(text(DF.format(time) + " ms").color(WHITE)));
         }
 
         sender.sendMessage(kv("  Total: ", text(totalCollections + " collections, " + DF.format(totalTime) + " ms"), GRAY, WHITE));

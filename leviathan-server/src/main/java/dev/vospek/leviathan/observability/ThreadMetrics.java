@@ -53,7 +53,7 @@ public final class ThreadMetrics {
     }
 
     /**
-     * 获取总线程 CPU 时间
+     * 获取总线程 CPU 时间（纳秒）
      */
     public long getTotalThreadCpuTimeNs() {
         try {
