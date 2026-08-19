@@ -73,9 +73,7 @@ public final class ObservabilityBootstrap {
         // 每 5 秒同步一次指标（与 tickTimes5s 窗口对齐）
         scheduler.scheduleAtFixedRate(() -> {
             try {
-                if (MinecraftServer.getServer() != null) {
-                    syncMetrics();
-                }
+                syncMetrics();
             } catch (Exception e) {
                 LeviathanConfig.LOGGER.warn("Failed to sync metrics: {}", e.getMessage());
             }
@@ -99,10 +97,10 @@ public final class ObservabilityBootstrap {
         if (server == null) return;
 
         // 同步 Tick 指标
-        TickMetrics.get().syncFromServer(server);
+        TickMetrics tm = TickMetrics.get();
+        tm.syncFromServer(server);
 
         // 记录诊断日志
-        TickMetrics tm = TickMetrics.get();
         DiagnosticsLogger.logTickMetrics(
             tm.getCurrentTPS(),
             tm.getCurrentMSPT(),

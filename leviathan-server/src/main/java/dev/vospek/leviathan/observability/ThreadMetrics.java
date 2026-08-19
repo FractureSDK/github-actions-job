@@ -19,6 +19,9 @@ public final class ThreadMetrics {
 
     private static final MetricRegistry REGISTRY = MetricRegistry.get();
     private static final ThreadMXBean THREAD_BEAN = ManagementFactory.getThreadMXBean();
+    // 标准 JDK 实现都实现了 com.sun.management.ThreadMXBean，直接强转避免反射
+    private static final com.sun.management.ThreadMXBean SUN_THREAD_BEAN =
+        THREAD_BEAN instanceof com.sun.management.ThreadMXBean ? (com.sun.management.ThreadMXBean) THREAD_BEAN : null;
 
     private final MetricRegistry.Gauge<Integer> threadCount;
     private final MetricRegistry.Gauge<Integer> peakThreadCount;
@@ -56,12 +59,10 @@ public final class ThreadMetrics {
      * 获取总线程 CPU 时间（纳秒）
      */
     public long getTotalThreadCpuTimeNs() {
-        try {
-            Long time = (Long) THREAD_BEAN.getClass().getMethod("getTotalThreadCpuTime").invoke(THREAD_BEAN);
-            return time != null ? time : -1L;
-        } catch (Exception e) {
-            return -1L;
+        if (SUN_THREAD_BEAN != null) {
+            return SUN_THREAD_BEAN.getTotalThreadCpuTime();
         }
+        return -1L;
     }
 
     /**

@@ -1,13 +1,5 @@
 package dev.vospek.leviathan.observability;
 
-import org.apache.logging.log4j.Level;
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.core.LogEvent;
-import org.apache.logging.log4j.core.appender.AbstractAppender;
-import org.apache.logging.log4j.core.config.Property;
-import org.apache.logging.log4j.core.layout.PatternLayout;
-
 import java.io.File;
 import java.io.IOException;
 import java.nio.file.Files;
@@ -132,15 +124,17 @@ public final class DiagnosticsLogger {
 
     /**
      * 记录 Tick 性能数据
+     * <p>
+     * 所有时间参数均为微秒，内部转换为毫秒记录
      */
-    public static void logTickMetrics(double tps, double mspt, double p50, double p95, double p99, long overruns, long spikes) {
+    public static void logTickMetrics(double tps, double msptUs, double p50Us, double p95Us, double p99Us, long overruns, long spikes) {
         logStructured("performance", Map.of(
             "type", "tick_metrics",
             "tps", String.format("%.2f", tps),
-            "mspt", String.format("%.2f", mspt),
-            "p50_ms", String.format("%.2f", p50 / 1000.0),
-            "p95_ms", String.format("%.2f", p95 / 1000.0),
-            "p99_ms", String.format("%.2f", p99 / 1000.0),
+            "mspt", String.format("%.2f", msptUs / 1000.0),
+            "p50_ms", String.format("%.2f", p50Us / 1000.0),
+            "p95_ms", String.format("%.2f", p95Us / 1000.0),
+            "p99_ms", String.format("%.2f", p99Us / 1000.0),
             "overruns", overruns,
             "spikes", spikes
         ));
@@ -197,12 +191,15 @@ public final class DiagnosticsLogger {
         }
 
         void write(String line) {
-            try {
-                writer.write(line);
-                writer.newLine();
-                writer.flush();
-            } catch (IOException e) {
-                // 忽略写入错误，避免影响主线程
+            // BufferedWriter 非线程安全，metrics 同步线程与命令线程可能并发写入
+            synchronized (this) {
+                try {
+                    writer.write(line);
+                    writer.newLine();
+                    writer.flush();
+                } catch (IOException e) {
+                    // 忽略写入错误，避免影响主线程
+                }
             }
         }
 

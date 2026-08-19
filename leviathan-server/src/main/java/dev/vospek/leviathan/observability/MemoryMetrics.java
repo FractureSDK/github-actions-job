@@ -1,10 +1,12 @@
 package dev.vospek.leviathan.observability;
 
+import java.lang.management.GarbageCollectorMXBean;
 import java.lang.management.ManagementFactory;
 import java.lang.management.MemoryMXBean;
 import java.lang.management.MemoryPoolMXBean;
 import java.lang.management.MemoryUsage;
 import java.lang.management.OperatingSystemMXBean;
+import java.lang.reflect.Method;
 import java.util.List;
 
 /**
@@ -18,6 +20,33 @@ public final class MemoryMetrics {
 
     private static final MetricRegistry REGISTRY = MetricRegistry.get();
     private static final MemoryMXBean MEMORY_BEAN = ManagementFactory.getMemoryMXBean();
+    private static final OperatingSystemMXBean OS_BEAN = ManagementFactory.getOperatingSystemMXBean();
+    private static final com.sun.management.OperatingSystemMXBean SUN_OS_BEAN =
+        OS_BEAN instanceof com.sun.management.OperatingSystemMXBean ? (com.sun.management.OperatingSystemMXBean) OS_BEAN : null;
+
+    // Unsafe 反射只做一次（Java 25 之后 JDK 提供 getDirectMemory 的受支持替代前仍需反射）
+    private static final Method UNSAFE_GET_DIRECT_MEMORY;
+    private static final Method UNSAFE_MAX_DIRECT_MEMORY;
+    private static final Object UNSAFE_INSTANCE;
+
+    static {
+        Method getDirectMemory = null;
+        Method maxDirectMemory = null;
+        Object unsafe = null;
+        try {
+            Class<?> unsafeClass = Class.forName("sun.misc.Unsafe");
+            java.lang.reflect.Field field = unsafeClass.getDeclaredField("theUnsafe");
+            field.setAccessible(true);
+            unsafe = field.get(null);
+            getDirectMemory = unsafeClass.getMethod("getDirectMemory");
+            maxDirectMemory = unsafeClass.getMethod("maxDirectMemory");
+        } catch (Exception ignored) {
+            // 反射不可用时指标返回 -1
+        }
+        UNSAFE_GET_DIRECT_MEMORY = getDirectMemory;
+        UNSAFE_MAX_DIRECT_MEMORY = maxDirectMemory;
+        UNSAFE_INSTANCE = unsafe;
+    }
 
     // Heap 指标
     private final MetricRegistry.Gauge<Long> heapUsed;
@@ -34,16 +63,15 @@ public final class MemoryMetrics {
     private final MetricRegistry.Gauge<Long> directMemoryUsed;
     private final MetricRegistry.Gauge<Long> directMemoryMax;
 
-    // GC 指标
-    private final MetricRegistry.Counter gcCount;
-    private final MetricRegistry.Counter gcTime;
-    private final MetricRegistry.Gauge<Long> lastGcDuration;
+    // GC 指标（直接从 GarbageCollectorMXBean 读取，无需监听器）
+    private final MetricRegistry.Gauge<Long> gcCount;
+    private final MetricRegistry.Gauge<Long> gcTime;
     private final MetricRegistry.Gauge<Double> gcCpuPercent;
 
     // Allocation Rate
     private final MetricRegistry.Gauge<Double> allocationRate;
-    private long lastHeapUsed = 0;
-    private long lastCheckTime = System.nanoTime();
+    private volatile long lastHeapUsed = 0;
+    private volatile long lastCheckTime = System.nanoTime();
 
     private MemoryMetrics() {
         // Heap
@@ -62,9 +90,8 @@ public final class MemoryMetrics {
         this.directMemoryMax = REGISTRY.gaugeLong("memory.direct.max", this::estimateDirectMemoryMax);
 
         // GC
-        this.gcCount = REGISTRY.counter("gc.total.count");
-        this.gcTime = REGISTRY.counter("gc.total.time_ms");
-        this.lastGcDuration = REGISTRY.gaugeLong("gc.last.duration_ms", () -> 0L); // 需要 GC 监听器更新
+        this.gcCount = REGISTRY.gaugeLong("gc.total.count", this::calculateGcCount);
+        this.gcTime = REGISTRY.gaugeLong("gc.total.time_ms", this::calculateGcTime);
         this.gcCpuPercent = REGISTRY.gaugeDouble("gc.cpu_percent", this::calculateGcCpuPercent);
 
         // Allocation Rate
@@ -84,12 +111,24 @@ public final class MemoryMetrics {
     }
 
     /**
-     * 记录 GC 事件（由 GC 监听器调用）
+     * GC 计数与耗时直接从 MXBean 读取（累计值）
      */
-    public void recordGc(long durationMs) {
-        gcCount.inc();
-        gcTime.inc(durationMs);
-        // lastGcDuration 会通过 Gauge 暴露，这里不直接设置
+    private long calculateGcCount() {
+        long total = 0;
+        for (GarbageCollectorMXBean gcBean : ManagementFactory.getGarbageCollectorMXBeans()) {
+            long count = gcBean.getCollectionCount();
+            if (count >= 0) total += count;
+        }
+        return total;
+    }
+
+    private long calculateGcTime() {
+        long total = 0;
+        for (GarbageCollectorMXBean gcBean : ManagementFactory.getGarbageCollectorMXBeans()) {
+            long time = gcBean.getCollectionTime();
+            if (time >= 0) total += time;
+        }
+        return total;
     }
 
     // ==================== 便捷查询 ====================
@@ -120,26 +159,18 @@ public final class MemoryMetrics {
     }
 
     private long estimateDirectMemoryUsed() {
+        if (UNSAFE_GET_DIRECT_MEMORY == null || UNSAFE_INSTANCE == null) return -1;
         try {
-            Class<?> unsafeClass = Class.forName("sun.misc.Unsafe");
-            java.lang.reflect.Field field = unsafeClass.getDeclaredField("theUnsafe");
-            field.setAccessible(true);
-            Object unsafe = field.get(null);
-            java.lang.reflect.Method getDirectMemory = unsafeClass.getMethod("getDirectMemory");
-            return (long) getDirectMemory.invoke(unsafe);
+            return (long) UNSAFE_GET_DIRECT_MEMORY.invoke(UNSAFE_INSTANCE);
         } catch (Exception e) {
             return -1;
         }
     }
 
     private long estimateDirectMemoryMax() {
+        if (UNSAFE_MAX_DIRECT_MEMORY == null || UNSAFE_INSTANCE == null) return -1;
         try {
-            Class<?> unsafeClass = Class.forName("sun.misc.Unsafe");
-            java.lang.reflect.Field field = unsafeClass.getDeclaredField("theUnsafe");
-            field.setAccessible(true);
-            Object unsafe = field.get(null);
-            java.lang.reflect.Method maxDirectMemory = unsafeClass.getMethod("maxDirectMemory");
-            return (long) maxDirectMemory.invoke(unsafe);
+            return (long) UNSAFE_MAX_DIRECT_MEMORY.invoke(UNSAFE_INSTANCE);
         } catch (Exception e) {
             return -1;
         }
@@ -154,12 +185,10 @@ public final class MemoryMetrics {
     }
 
     private long getProcessCpuTimeNanos() {
-        try {
-            OperatingSystemMXBean osBean = ManagementFactory.getOperatingSystemMXBean();
-            return (Long) osBean.getClass().getMethod("getProcessCpuTime").invoke(osBean);
-        } catch (Exception e) {
-            return -1;
+        if (SUN_OS_BEAN != null) {
+            return SUN_OS_BEAN.getProcessCpuTime();
         }
+        return -1;
     }
 
     private double calculateAllocationRate() {

@@ -85,9 +85,9 @@ public final class StatsCommand extends PermissionedLeviathanSubcommand {
         sender.sendMessage(section("Tick Performance"));
 
         // Server-wide TPS (5s, 10s, 60s) - use TickData like MSPTCommand
-        double[] tps5s = getTPS(server.tickTimes5s);
-        double[] tps10s = getTPS(server.tickTimes10s);
-        double[] tps60s = getTPS(server.tickTimes1m);
+        double[] tps5s = getTPS(server.tickTimes5s, server);
+        double[] tps10s = getTPS(server.tickTimes10s, server);
+        double[] tps60s = getTPS(server.tickTimes1m, server);
 
         sender.sendMessage(tpsLine("TPS (5s):", tps5s));
         sender.sendMessage(tpsLine("TPS (10s):", tps10s));
@@ -120,11 +120,9 @@ public final class StatsCommand extends PermissionedLeviathanSubcommand {
             .append(text(")").color(GRAY));
     }
 
-    private double[] getTPS(TickData tickData) {
-        TickData.TickReportData reportData = tickData.generateTickReport(null, System.nanoTime(), MinecraftServer.getServer().tickRateManager().nanosecondsPerTick());
+    private double[] getTPS(TickData tickData, MinecraftServer server) {
+        TickData.TickReportData reportData = tickData.generateTickReport(null, System.nanoTime(), server.tickRateManager().nanosecondsPerTick());
         double avgD = reportData == null ? 0.0 : reportData.timePerTickData().segmentAll().average() * 1.0E-6D;
-        double minD = reportData == null ? 0.0 : reportData.timePerTickData().segmentAll().least() * 1.0E-6D;
-        double maxD = reportData == null ? 0.0 : reportData.timePerTickData().segmentAll().greatest() * 1.0E-6D;
         double tps = avgD > 0 ? Math.min(1000.0 / avgD, 20.0) : 20.0;
         return new double[]{tps, avgD};
     }
@@ -169,12 +167,10 @@ public final class StatsCommand extends PermissionedLeviathanSubcommand {
     }
 
     private double getProcessCpuPercent(OperatingSystemMXBean osBean) {
-        try {
-            Double load = (Double) osBean.getClass().getMethod("getProcessCpuLoad").invoke(osBean);
-            return load != null ? load * 100.0 : 0.0;
-        } catch (Exception e) {
-            return 0.0;
+        if (osBean instanceof com.sun.management.OperatingSystemMXBean sunBean) {
+            return Math.max(0.0, sunBean.getProcessCpuLoad()) * 100.0;
         }
+        return 0.0;
     }
 
     private void displayMemory(CommandSender sender) {
@@ -218,12 +214,10 @@ public final class StatsCommand extends PermissionedLeviathanSubcommand {
     }
 
     private double getTotalThreadCpuTimeSeconds(ThreadMXBean threadMXBean) {
-        try {
-            Long time = (Long) threadMXBean.getClass().getMethod("getTotalThreadCpuTime").invoke(threadMXBean);
-            return time != null ? time / 1_000_000_000.0 : 0.0;
-        } catch (Exception e) {
-            return 0.0;
+        if (threadMXBean instanceof com.sun.management.ThreadMXBean sunBean) {
+            return sunBean.getTotalThreadCpuTime() / 1_000_000_000.0;
         }
+        return 0.0;
     }
 
     private void displayCounts(CommandSender sender, MinecraftServer server) {

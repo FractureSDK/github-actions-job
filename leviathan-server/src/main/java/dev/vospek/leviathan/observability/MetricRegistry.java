@@ -301,8 +301,11 @@ public final class MetricRegistry {
 
         /**
          * 记录一个值（单位：微秒）
+         * <p>
+         * 由 tick 线程写入，而统计读取（getMean/percentile）发生在指标同步线程，
+         * 因此所有读写方法必须同步。每 tick 仅记录一次，锁竞争可忽略。
          */
-        public void record(double valueUs) {
+        public synchronized void record(double valueUs) {
             if (valueUs < 0) return;
 
             count++;
@@ -346,30 +349,30 @@ public final class MetricRegistry {
             return low;
         }
 
-        public long getCount() {
+        public synchronized long getCount() {
             return count;
         }
 
-        public double getSum() {
+        public synchronized double getSum() {
             return sum;
         }
 
-        public double getMin() {
+        public synchronized double getMin() {
             return count > 0 ? min : 0;
         }
 
-        public double getMax() {
+        public synchronized double getMax() {
             return max;
         }
 
-        public double getMean() {
+        public synchronized double getMean() {
             return count > 0 ? sum / count : 0;
         }
 
         /**
          * 获取指定百分位数（单位：微秒）
          */
-        public double percentile(double p) {
+        public synchronized double percentile(double p) {
             if (count == 0) return 0;
             if (p <= 0) return getMin();
             if (p >= 100) return getMax();

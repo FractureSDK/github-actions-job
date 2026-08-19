@@ -14,6 +14,9 @@ public final class CpuMetrics {
 
     private static final MetricRegistry REGISTRY = MetricRegistry.get();
     private static final OperatingSystemMXBean OS_BEAN = ManagementFactory.getOperatingSystemMXBean();
+    // 标准 JDK 实现都实现了 com.sun.management.OperatingSystemMXBean，直接强转避免反射
+    private static final com.sun.management.OperatingSystemMXBean SUN_OS_BEAN =
+        OS_BEAN instanceof com.sun.management.OperatingSystemMXBean ? (com.sun.management.OperatingSystemMXBean) OS_BEAN : null;
 
     private final MetricRegistry.Gauge<Double> processCpuLoad;
     private final MetricRegistry.Gauge<Double> systemCpuLoad;
@@ -22,7 +25,7 @@ public final class CpuMetrics {
 
     private CpuMetrics() {
         this.processCpuLoad = REGISTRY.gaugeDouble("cpu.process.load", () -> getProcessCpuLoad());
-        this.systemCpuLoad = REGISTRY.gaugeDouble("cpu.system.load", OS_BEAN::getSystemLoadAverage);
+        this.systemCpuLoad = REGISTRY.gaugeDouble("cpu.system.load", this::getSystemCpuLoad);
         this.processCpuTime = REGISTRY.gaugeLong("cpu.process.time", this::getProcessCpuTime);
         this.availableProcessors = REGISTRY.gaugeInt("cpu.available", Runtime.getRuntime()::availableProcessors);
     }
@@ -44,26 +47,37 @@ public final class CpuMetrics {
 
     // ==================== 便捷查询 ====================
 
+    /**
+     * 获取进程 CPU 使用率（0.0 ~ 1.0），不可用时返回 0.0
+     */
     public double getProcessCpuLoad() {
-        try {
-            Double load = (Double) OS_BEAN.getClass().getMethod("getProcessCpuLoad").invoke(OS_BEAN);
-            return load != null ? load : 0.0;
-        } catch (Exception e) {
-            return 0.0;
+        if (SUN_OS_BEAN != null) {
+            return Math.max(0.0, SUN_OS_BEAN.getProcessCpuLoad());
         }
+        return 0.0;
     }
 
+    /**
+     * 获取系统 CPU 使用率（0.0 ~ 1.0），不可用时回退到 1 分钟负载平均值
+     */
     public double getSystemCpuLoad() {
+        if (SUN_OS_BEAN != null) {
+            double load = SUN_OS_BEAN.getSystemCpuLoad();
+            if (load >= 0) {
+                return load;
+            }
+        }
         return OS_BEAN.getSystemLoadAverage();
     }
 
+    /**
+     * 获取进程累计 CPU 时间（纳秒），不可用时返回 -1
+     */
     public long getProcessCpuTime() {
-        try {
-            Long time = (Long) OS_BEAN.getClass().getMethod("getProcessCpuTime").invoke(OS_BEAN);
-            return time != null ? time : -1L;
-        } catch (Exception e) {
-            return -1L;
+        if (SUN_OS_BEAN != null) {
+            return SUN_OS_BEAN.getProcessCpuTime();
         }
+        return -1L;
     }
 
     public int getAvailableProcessors() {
@@ -81,6 +95,6 @@ public final class CpuMetrics {
      * 获取系统负载平均值（1分钟）
      */
     public double getSystemLoadAverage() {
-        return getSystemCpuLoad();
+        return OS_BEAN.getSystemLoadAverage();
     }
 }
