@@ -8,7 +8,6 @@ import dev.vospek.leviathan.command.PermissionedLeviathanSubcommand;
 import dev.vospek.leviathan.config.modules.misc.CoreConfig;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.format.NamedTextColor;
-import org.galemc.gale.version.AbstractPaperVersionFetcher;
 import org.bukkit.command.CommandSender;
 import org.bukkit.permissions.PermissionDefault;
 
@@ -98,7 +97,7 @@ public final class StatusCommand extends PermissionedLeviathanSubcommand {
 
     private String getLeviathanVersion() {
         try {
-            var buildInfo = AbstractPaperVersionFetcher.BUILD_INFO;
+            var buildInfo = io.papermc.paper.ServerBuildInfo.buildInfo();
             if (buildInfo.buildNumber().isPresent()) {
                 return buildInfo.brandName() + " " + buildInfo.minecraftVersionId() + " (build " + buildInfo.buildNumber().getAsInt() + ")";
             }
@@ -110,8 +109,7 @@ public final class StatusCommand extends PermissionedLeviathanSubcommand {
 
     private String getLeafVersion() {
         try {
-            var buildInfo = io.papermc.paper.ServerBuildInfo.buildInfo();
-            return buildInfo.asString(io.papermc.paper.ServerBuildInfo.StringRepresentation.VERSION_SIMPLE);
+            return io.papermc.paper.ServerBuildInfo.buildInfo().asString(io.papermc.paper.ServerBuildInfo.StringRepresentation.VERSION_SIMPLE);
         } catch (Exception e) {
             return "unknown";
         }

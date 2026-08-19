@@ -1,7 +1,6 @@
 package dev.vospek.leviathan.command.subcommands;
 
 import ca.spottedleaf.common.time.TickData;
-import ca.spottedleaf.common.time.TickTimes;
 import dev.vospek.leviathan.command.LeviathanCommand;
 import dev.vospek.leviathan.command.PermissionedLeviathanSubcommand;
 import dev.vospek.leviathan.config.modules.async.SparklyPaperParallelWorldTicking;
@@ -130,6 +129,30 @@ public final class StatsCommand extends PermissionedLeviathanSubcommand {
         return new double[]{tps, avgD};
     }
 
+    private double[] getTPS(long[] times) {
+        long min = Long.MAX_VALUE;
+        long max = 0L;
+        long total = 0L;
+        int count = 0;
+
+        for (long value : times) {
+            if (value > 0L) {
+                count++;
+                if (value < min) min = value;
+                if (value > max) max = value;
+                total += value;
+            }
+        }
+
+        if (count == 0) {
+            return new double[]{20.0, 0.0};
+        }
+
+        double avgMs = (total / (double) count) * 1.0E-6D;
+        double tps = avgD > 0 ? Math.min(1000.0 / avgD, 20.0) : 20.0;
+        return new double[]{tps, avgMs};
+    }
+
     private NamedTextColor getTPSColor(double tps) {
         if (tps >= 19.0) return GREEN;
         if (tps >= 17.0) return YELLOW;
@@ -209,7 +232,7 @@ public final class StatsCommand extends PermissionedLeviathanSubcommand {
         int chunks = 0;
 
         for (net.minecraft.server.level.ServerLevel level : server.getAllLevels()) {
-            entities += level.getEntities().size();
+            entities += level.getEntityCount();
             chunks += level.getChunkSource().getLoadedChunksCount();
         }
 
