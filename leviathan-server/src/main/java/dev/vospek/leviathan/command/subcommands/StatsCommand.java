@@ -97,7 +97,7 @@ public final class StatsCommand extends PermissionedLeviathanSubcommand {
         // Per-world if parallel ticking enabled
         if (SparklyPaperParallelWorldTicking.enabled) {
             for (net.minecraft.server.level.ServerLevel level : server.getAllLevels()) {
-                double[] worldTPS = getTPS(level.tickTimes5s.getTimes());
+                double[] worldTPS = getTPS(level.tickTimes5s);
                 sender.sendMessage(worldTpsLine(level.getWorld().getName(), worldTPS));
             }
         }

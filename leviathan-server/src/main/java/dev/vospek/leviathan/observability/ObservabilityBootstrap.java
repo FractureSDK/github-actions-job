@@ -134,7 +134,7 @@ public final class ObservabilityBootstrap {
         ThreadMetrics thm = ThreadMetrics.get();
         DiagnosticsLogger.logDiagnostics("Thread count: {}, Peak: {}, Daemon: {}, CPU: {}s",
             thm.getThreadCount(), thm.getPeakThreadCount(), thm.getDaemonThreadCount(),
-            thm.getTotalThreadCpuTime() / 1_000_000_000.0);
+            thm.getTotalThreadCpuTimeNs() / 1_000_000_000.0);
 
         // CPU 信息
         CpuMetrics cm = CpuMetrics.get();

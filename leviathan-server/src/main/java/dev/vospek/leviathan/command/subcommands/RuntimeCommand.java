@@ -89,7 +89,7 @@ public final class RuntimeCommand extends PermissionedLeviathanSubcommand {
         sender.sendMessage(empty());
         sender.sendMessage(section("JVM Arguments"));
         for (String arg : runtime.inputArguments) {
-            sender.sendMessage(text("  ").color(GRAY).append(text(arg).color(GRAY)).build());
+            sender.sendMessage(text("  ").color(GRAY).append(text(arg).color(GRAY)));
         }
 
         return true;

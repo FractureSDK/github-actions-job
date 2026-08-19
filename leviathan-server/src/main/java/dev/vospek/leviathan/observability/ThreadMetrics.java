@@ -33,7 +33,7 @@ public final class ThreadMetrics {
         this.threadCount = REGISTRY.gaugeInt("thread.count", THREAD_BEAN::getThreadCount);
         this.peakThreadCount = REGISTRY.gaugeInt("thread.peak", THREAD_BEAN::getPeakThreadCount);
         this.daemonThreadCount = REGISTRY.gaugeInt("thread.daemon", THREAD_BEAN::getDaemonThreadCount);
-        this.totalThreadCpuTime = REGISTRY.gaugeLong("thread.total_cpu_ns", this::getTotalThreadCpuTime);
+        this.totalThreadCpuTime = REGISTRY.gaugeLong("thread.total_cpu_ns", this::getTotalThreadCpuTimeNs);
         this.threadStateCount = REGISTRY.gaugeInt("thread.runnable_count", this::getRunnableThreadCount);
     }
 
@@ -55,7 +55,7 @@ public final class ThreadMetrics {
     /**
      * 获取总线程 CPU 时间
      */
-    private long getTotalThreadCpuTime() {
+    public long getTotalThreadCpuTimeNs() {
         try {
             Long time = (Long) THREAD_BEAN.getClass().getMethod("getTotalThreadCpuTime").invoke(THREAD_BEAN);
             return time != null ? time : -1L;

@@ -62,12 +62,12 @@ public final class MetricsCommand extends PermissionedLeviathanSubcommand {
 
         sender.sendMessage(empty());
         sender.sendMessage(section("Usage:"));
-        sender.sendMessage(text("  /leviathan metrics counters    ").color(GRAY).append(text("- List all counters").color(GRAY)).build());
-        sender.sendMessage(text("  /leviathan metrics gauges      ").color(GRAY).append(text("- List all gauges").color(GRAY)).build());
-        sender.sendMessage(text("  /leviathan metrics histograms  ").color(GRAY).append(text("- List all histograms").color(GRAY)).build());
-        sender.sendMessage(text("  /leviathan metrics timers      ").color(GRAY).append(text("- List all timers").color(GRAY)).build());
-        sender.sendMessage(text("  /leviathan metrics rates       ").color(GRAY).append(text("- List all rates").color(GRAY)).build());
-        sender.sendMessage(text("  /leviathan metrics snapshot    ").color(GRAY).append(text("- Full snapshot").color(GRAY)).build());
+        sender.sendMessage(text("  /leviathan metrics counters    ").color(GRAY).append(text("- List all counters").color(GRAY)));
+        sender.sendMessage(text("  /leviathan metrics gauges      ").color(GRAY).append(text("- List all gauges").color(GRAY)));
+        sender.sendMessage(text("  /leviathan metrics histograms  ").color(GRAY).append(text("- List all histograms").color(GRAY)));
+        sender.sendMessage(text("  /leviathan metrics timers      ").color(GRAY).append(text("- List all timers").color(GRAY)));
+        sender.sendMessage(text("  /leviathan metrics rates       ").color(GRAY).append(text("- List all rates").color(GRAY)));
+        sender.sendMessage(text("  /leviathan metrics snapshot    ").color(GRAY).append(text("- Full snapshot").color(GRAY)));
     }
 
     private void showCounters(CommandSender sender) {
@@ -80,7 +80,7 @@ public final class MetricsCommand extends PermissionedLeviathanSubcommand {
         }
 
         for (MetricRegistry.Counter counter : snapshot.counters().values()) {
-            sender.sendMessage(text("  " + counter.getName() + " = " + counter.get()).color(WHITE).build());
+            sender.sendMessage(text("  " + counter.getName() + " = " + counter.get()).color(WHITE));
         }
     }
 
@@ -94,7 +94,7 @@ public final class MetricsCommand extends PermissionedLeviathanSubcommand {
         }
 
         for (MetricRegistry.Gauge<?> gauge : snapshot.gauges().values()) {
-            sender.sendMessage(text("  " + gauge.toString()).color(WHITE).build());
+            sender.sendMessage(text("  " + gauge.toString()).color(WHITE));
         }
     }
 
@@ -108,7 +108,7 @@ public final class MetricsCommand extends PermissionedLeviathanSubcommand {
         }
 
         for (MetricRegistry.Histogram histogram : snapshot.histograms().values()) {
-            sender.sendMessage(text("  " + histogram.toString()).color(WHITE).build());
+            sender.sendMessage(text("  " + histogram.toString()).color(WHITE));
         }
     }
 
@@ -122,7 +122,7 @@ public final class MetricsCommand extends PermissionedLeviathanSubcommand {
         }
 
         for (MetricRegistry.Timer timer : snapshot.timers().values()) {
-            sender.sendMessage(text("  " + timer.toString()).color(WHITE).build());
+            sender.sendMessage(text("  " + timer.toString()).color(WHITE));
         }
     }
 
@@ -136,7 +136,7 @@ public final class MetricsCommand extends PermissionedLeviathanSubcommand {
         }
 
         for (MetricRegistry.Rate rate : snapshot.rates().values()) {
-            sender.sendMessage(text("  " + rate.toString()).color(WHITE).build());
+            sender.sendMessage(text("  " + rate.toString()).color(WHITE));
         }
     }
 
@@ -144,7 +144,7 @@ public final class MetricsCommand extends PermissionedLeviathanSubcommand {
         MetricRegistry.MetricSnapshot snapshot = MetricRegistry.get().snapshot();
 
         sender.sendMessage(header("Full Snapshot"));
-        sender.sendMessage(text(snapshot.toString()).color(GRAY).build());
+        sender.sendMessage(text(snapshot.toString()).color(GRAY));
         sender.sendMessage(empty());
 
         showCounters(sender);

@@ -97,7 +97,7 @@ public final class StatusCommand extends PermissionedLeviathanSubcommand {
 
     private String getLeviathanVersion() {
         try {
-            return dev.vospek.leviathan.version.LeviathanVersionFetcher.getVersion();
+            return dev.vospek.leviathan.version.LeviathanVersionFetcher.VERSION;
         } catch (Exception e) {
             return "unknown";
         }
@@ -105,7 +105,7 @@ public final class StatusCommand extends PermissionedLeviathanSubcommand {
 
     private String getLeafVersion() {
         try {
-            return io.papermc.paper.ServerBuildInfo.buildInfo().mcVersion();
+            return io.papermc.paper.ServerBuildInfo.buildInfo().version();
         } catch (Exception e) {
             return "unknown";
         }
