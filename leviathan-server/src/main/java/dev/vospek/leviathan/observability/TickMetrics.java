@@ -24,6 +24,9 @@ public final class TickMetrics {
     // Per-world 指标（懒加载）
     private final java.util.Map<String, WorldTickMetrics> worldMetrics = new java.util.concurrent.ConcurrentHashMap<>();
 
+    // 服务器级同步窗口缓存: suffix -> [avg, min, max] ms
+    private final java.util.Map<String, double[]> serverSyncCache = new java.util.concurrent.ConcurrentHashMap<>();
+
     // 阈值配置
     private static final double OVERRUN_THRESHOLD_MS = 50.0; // 50ms 视为 overrun
     private static final double SPIKE_THRESHOLD_MS = 100.0;  // 100ms 视为 spike
@@ -94,13 +97,14 @@ public final class TickMetrics {
     private void syncTickData(TickData tickData, String suffix) {
         TickData.TickReportData report = tickData.generateTickReport(null, System.nanoTime(), MinecraftServer.getServer().tickRateManager().nanosecondsPerTick());
         if (report != null) {
-            double avgMs = report.timePerTickData().segmentAll().average() * 1.0E-6;
-            double minMs = report.timePerTickData().segmentAll().least() * 1.0E-6;
-            double maxMs = report.timePerTickData().segmentAll().greatest() * 1.0E-6;
+            double[] values = serverSyncCache.computeIfAbsent(suffix, k -> new double[3]);
+            values[0] = report.timePerTickData().segmentAll().average() * 1.0E-6;
+            values[1] = report.timePerTickData().segmentAll().least() * 1.0E-6;
+            values[2] = report.timePerTickData().segmentAll().greatest() * 1.0E-6;
 
-            REGISTRY.gauge("tick.server." + suffix + ".avg", () -> avgMs);
-            REGISTRY.gauge("tick.server." + suffix + ".min", () -> minMs);
-            REGISTRY.gauge("tick.server." + suffix + ".max", () -> maxMs);
+            REGISTRY.gaugeDouble("tick.server." + suffix + ".avg", () -> { double[] v = serverSyncCache.get(suffix); return v != null ? v[0] : 0.0; });
+            REGISTRY.gaugeDouble("tick.server." + suffix + ".min", () -> { double[] v = serverSyncCache.get(suffix); return v != null ? v[1] : 0.0; });
+            REGISTRY.gaugeDouble("tick.server." + suffix + ".max", () -> { double[] v = serverSyncCache.get(suffix); return v != null ? v[2] : 0.0; });
         }
     }
 
@@ -154,6 +158,8 @@ public final class TickMetrics {
         private final MetricRegistry.Timer tickTimer;
         private final MetricRegistry.Counter overrunCounter;
         private final MetricRegistry.Counter spikeCounter;
+        // 同步窗口缓存: suffix -> [avg, min, max] ms
+        private final java.util.Map<String, double[]> syncCache = new java.util.concurrent.ConcurrentHashMap<>();
 
         private WorldTickMetrics(String worldName) {
             this.worldName = worldName;
@@ -170,16 +176,29 @@ public final class TickMetrics {
         }
 
         public void syncFromTickData(MinecraftServer.TickTimes tickTimes, String suffix) {
-            TickData.TickReportData report = tickTimes.generateTickReport(null, System.nanoTime(), MinecraftServer.getServer().tickRateManager().nanosecondsPerTick());
-            if (report != null) {
-                double avgMs = report.timePerTickData().segmentAll().average() * 1.0E-6;
-                double minMs = report.timePerTickData().segmentAll().least() * 1.0E-6;
-                double maxMs = report.timePerTickData().segmentAll().greatest() * 1.0E-6;
-
-                REGISTRY.gauge("tick.world." + worldName + "." + suffix + ".avg", () -> avgMs);
-                REGISTRY.gauge("tick.world." + worldName + "." + suffix + ".min", () -> minMs);
-                REGISTRY.gauge("tick.world." + worldName + "." + suffix + ".max", () -> maxMs);
+            double[] values = syncCache.computeIfAbsent(suffix, k -> new double[3]);
+            long[] times = tickTimes.getTimes();
+            long min = Long.MAX_VALUE;
+            long max = 0L;
+            long total = 0L;
+            int count = 0;
+            for (long value : times) {
+                if (value > 0L) {
+                    count++;
+                    if (value < min) min = value;
+                    if (value > max) max = value;
+                    total += value;
+                }
             }
+            if (count > 0) {
+                values[0] = (total / (double) count) * 1.0E-6;
+                values[1] = min * 1.0E-6;
+                values[2] = max * 1.0E-6;
+            }
+
+            REGISTRY.gaugeDouble("tick.world." + worldName + "." + suffix + ".avg", () -> { double[] v = syncCache.get(suffix); return v != null ? v[0] : 0.0; });
+            REGISTRY.gaugeDouble("tick.world." + worldName + "." + suffix + ".min", () -> { double[] v = syncCache.get(suffix); return v != null ? v[1] : 0.0; });
+            REGISTRY.gaugeDouble("tick.world." + worldName + "." + suffix + ".max", () -> { double[] v = syncCache.get(suffix); return v != null ? v[2] : 0.0; });
         }
 
         public double getTPS() {
