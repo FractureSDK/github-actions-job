@@ -104,5 +104,5 @@ index 006a3c8bf13d93570e264added86a179dc90f7fb..3707037438162daec6535e7e5c5bfab6
 +    // Leaves end - cache item max stack size
 +
      public void setCount(final int count) {
-         // Leviathan start - Lithium - equipment tracking
+         // Leaf start - Lithium - equipment tracking
          if (count != this.count) {
