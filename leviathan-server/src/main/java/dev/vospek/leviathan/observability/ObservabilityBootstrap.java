@@ -130,18 +130,18 @@ public final class ObservabilityBootstrap {
 
         // 线程信息
         ThreadMetrics thm = ThreadMetrics.get();
-        DiagnosticsLogger.logDiagnostics("Thread count: {}, Peak: {}, Daemon: {}, CPU: {}s",
+        DiagnosticsLogger.logDiagnostics("Thread count: %d, Peak: %d, Daemon: %d, CPU: %.2fs",
             thm.getThreadCount(), thm.getPeakThreadCount(), thm.getDaemonThreadCount(),
             thm.getTotalThreadCpuTimeNs() / 1_000_000_000.0);
 
         // CPU 信息
         CpuMetrics cm = CpuMetrics.get();
-        DiagnosticsLogger.logDiagnostics("CPU Process: {:.1f}%, System Load: {:.2f}, Cores: {}",
+        DiagnosticsLogger.logDiagnostics("CPU Process: %.1f%%, System Load: %.2f, Cores: %d",
             cm.getProcessCpuPercent(), cm.getSystemLoadAverage(), cm.getAvailableProcessors());
 
         // GC 信息
         MemoryMetrics mm = MemoryMetrics.get();
-        DiagnosticsLogger.logDiagnostics("GC Count: {}, GC Time: {}ms, Allocation Rate: {:.2f}MB/s",
+        DiagnosticsLogger.logDiagnostics("GC Count: %d, GC Time: %dms, Allocation Rate: %.2fMB/s",
             mm.getGcCount(), mm.getGcTime(), mm.getAllocationRateMbPerSec());
     }
 
