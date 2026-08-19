@@ -149,7 +149,7 @@ public final class StatsCommand extends PermissionedLeviathanSubcommand {
         }
 
         double avgMs = (total / (double) count) * 1.0E-6D;
-        double tps = avgD > 0 ? Math.min(1000.0 / avgD, 20.0) : 20.0;
+        double tps = avgMs > 0 ? Math.min(1000.0 / avgMs, 20.0) : 20.0;
         return new double[]{tps, avgMs};
     }
 

@@ -101,7 +101,10 @@ public final class ThreadMetrics {
 
         // 先更新缓存
         long[] ids = THREAD_BEAN.getAllThreadIds();
-        long[] cpuTimes = THREAD_BEAN.getThreadCpuTime(ids);
+        long[] cpuTimes = new long[ids.length];
+        for (int i = 0; i < ids.length; i++) {
+            cpuTimes[i] = THREAD_BEAN.getThreadCpuTime(ids[i]);
+        }
         ThreadInfo[] infos = THREAD_BEAN.getThreadInfo(ids);
 
         for (int i = 0; i < ids.length; i++) {
@@ -124,7 +127,6 @@ public final class ThreadMetrics {
     public int getThreadCount() { return threadCount.getAsInt(); }
     public int getPeakThreadCount() { return peakThreadCount.getAsInt(); }
     public int getDaemonThreadCount() { return daemonThreadCount.getAsInt(); }
-    public long getTotalThreadCpuTimeNs() { return totalThreadCpuTime.getAsLong(); }
     public int getRunnableThreadCountGauge() { return threadStateCount.getAsInt(); }
     public Map<String, Long> getThreadStates() { return getThreadStateDistribution(); }
 

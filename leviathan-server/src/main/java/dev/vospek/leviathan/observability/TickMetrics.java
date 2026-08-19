@@ -170,9 +170,7 @@ public final class TickMetrics {
         }
 
         public void syncFromTickData(MinecraftServer.TickTimes tickTimes, String suffix) {
-            long[] times = tickTimes.getTimes();
-            TickData tickData = TickData.create(times);
-            TickData.TickReportData report = tickData.generateTickReport(null, System.nanoTime(), MinecraftServer.getServer().tickRateManager().nanosecondsPerTick());
+            TickData.TickReportData report = tickTimes.generateTickReport(null, System.nanoTime(), MinecraftServer.getServer().tickRateManager().nanosecondsPerTick());
             if (report != null) {
                 double avgMs = report.timePerTickData().segmentAll().average() * 1.0E-6;
                 double minMs = report.timePerTickData().segmentAll().least() * 1.0E-6;
