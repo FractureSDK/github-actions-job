@@ -102,6 +102,6 @@ fi
 
 # Delete current release tag
 if git show-ref --tags $CURRENT_TAG --quiet; then
-  curl --request DELETE --header "PRIVATE-TOKEN: ${CI_JOB_TOKEN}" "${CI_API_V4_URL}/projects/${CI_PROJECT_ID}/releases/${CURRENT_TAG}" || true
+  curl --request DELETE --header "JOB-TOKEN: ${CI_JOB_TOKEN}" "${CI_API_V4_URL}/projects/${CI_PROJECT_ID}/releases/${CURRENT_TAG}" || true
 fi
 echo "🚀Ready for release"
