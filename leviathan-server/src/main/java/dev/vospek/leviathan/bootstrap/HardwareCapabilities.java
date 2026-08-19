@@ -304,9 +304,9 @@ public final class HardwareCapabilities {
     }
 
     /**
-     * 静态方法检查是否为 Linux
+     * 检查是否为 Linux 系统
      */
-    private static boolean isLinux() {
+    public static boolean isLinux() {
         String osName = System.getProperty("os.name").toLowerCase(Locale.ROOT);
         return osName.contains("linux");
     }

@@ -18,6 +18,7 @@ import java.lang.management.OperatingSystemMXBean;
 import java.text.DecimalFormat;
 import java.util.List;
 
+import static net.kyori.adventure.text.Component.empty;
 import static net.kyori.adventure.text.Component.text;
 import static net.kyori.adventure.text.format.NamedTextColor.*;
 
@@ -48,51 +49,47 @@ public final class StatusCommand extends PermissionedLeviathanSubcommand {
         String leviathanVersion = getLeviathanVersion();
         String leafVersion = getLeafVersion();
 
-        sender.sendMessage(text("━━━━━━━━━━━━━ ").color(GOLD)
-            .append(text("Leviathan Status").color(YELLOW))
-            .append(text(" ━━━━━━━━━━━━━").color(GOLD))
-            .build());
+        sender.sendMessage(header("Leviathan Status"));
 
-        sender.sendMessage(text(""));
-        sender.sendMessage(text("▸ Version").color(AQUA));
-        sender.sendMessage(text("  Leviathan: ").color(GRAY).append(text(leviathanVersion).color(WHITE)));
-        sender.sendMessage(text("  Leaf Base:  ").color(GRAY).append(text(leafVersion).color(WHITE)));
+        sender.sendMessage(section("Version"));
+        sender.sendMessage(kv("  Leviathan: ", text(leviathanVersion), GRAY, WHITE));
+        sender.sendMessage(kv("  Leaf Base:  ", text(leafVersion), GRAY, WHITE));
 
-        sender.sendMessage(text(""));
-        sender.sendMessage(text("▸ Runtime").color(AQUA));
-        sender.sendMessage(text("  Java:       ").color(GRAY).append(text(runtime.javaVersion + " (" + runtime.vmName + ")").color(WHITE)));
-        sender.sendMessage(text("  OS:         ").color(GRAY).append(text(runtime.osName + " " + runtime.osVersion + " (" + runtime.architecture + ")").color(WHITE)));
+        sender.sendMessage(empty());
+        sender.sendMessage(section("Runtime"));
+        sender.sendMessage(kv("  Java:       ", text(runtime.javaVersion + " (" + runtime.vmName + ")"), GRAY, WHITE));
+        sender.sendMessage(kv("  OS:         ", text(runtime.osName + " " + runtime.osVersion + " (" + runtime.architecture + ")"), GRAY, WHITE));
 
-        sender.sendMessage(text(""));
-        sender.sendMessage(text("▸ Hardware").color(AQUA));
-        sender.sendMessage(text("  CPU:        ").color(GRAY).append(text(hardware.logicalProcessors + " logical / " + hardware.physicalProcessors + " physical").color(WHITE)));
-        sender.sendMessage(text("  SIMD/AVX2:  ").color(GRAY).append(text((hardware.hasSIMD ? "SIMD " : "") + (hardware.hasAVX2 ? "AVX2 " : "") + (hardware.hasAVX512 ? "AVX-512" : "")).color(WHITE)));
+        sender.sendMessage(empty());
+        sender.sendMessage(section("Hardware"));
+        sender.sendMessage(kv("  CPU:        ", text(hardware.logicalProcessors + " logical / " + hardware.physicalProcessors + " physical"), GRAY, WHITE));
+        sender.sendMessage(kv("  SIMD/AVX2:  ", text((hardware.hasSIMD ? "SIMD " : "") + (hardware.hasAVX2 ? "AVX2 " : "") + (hardware.hasAVX512 ? "AVX-512" : "")), GRAY, WHITE));
         
         // Memory
         MemoryMXBean memoryMXBean = ManagementFactory.getMemoryMXBean();
         MemoryUsage heapUsage = memoryMXBean.getHeapMemoryUsage();
         OperatingSystemMXBean osBean = ManagementFactory.getOperatingSystemMXBean();
         
-        sender.sendMessage(text(""));
-        sender.sendMessage(text("▸ Memory").color(AQUA));
-        sender.sendMessage(text("  Heap:       ").color(GRAY).append(text(formatBytes(heapUsage.getUsed()) + " / " + formatBytes(heapUsage.getMax())).color(WHITE)));
-        sender.sendMessage(text("  Physical:   ").color(GRAY).append(text(formatBytes(hardware.physicalMemoryBytes)).color(WHITE)));
+        sender.sendMessage(empty());
+        sender.sendMessage(section("Memory"));
+        sender.sendMessage(kv("  Heap:       ", text(formatBytes(heapUsage.getUsed()) + " / " + formatBytes(heapUsage.getMax())), GRAY, WHITE));
+        sender.sendMessage(kv("  Physical:   ", text(formatBytes(hardware.physicalMemoryBytes)), GRAY, WHITE));
         
         // CPU Load
-        sender.sendMessage(text(""));
-        sender.sendMessage(text("▸ System Load").color(AQUA));
-        sender.sendMessage(text("  CPU Load:   ").color(GRAY).append(text(DF.format(osBean.getSystemLoadAverage())).color(WHITE)));
-        sender.sendMessage(text("  Process CPU:").color(GRAY).append(text(getProcessCpuPercent(osBean) + "%").color(WHITE)));
+        sender.sendMessage(empty());
+        sender.sendMessage(section("System Load"));
+        sender.sendMessage(kv("  CPU Load:   ", text(DF.format(osBean.getSystemLoadAverage())), GRAY, WHITE));
+        sender.sendMessage(kv("  Process CPU:", text(getProcessCpuPercent(osBean) + "%"), GRAY, WHITE));
 
         // Runtime Mode
-        sender.sendMessage(text(""));
-        sender.sendMessage(text("▸ Runtime Mode").color(AQUA));
-        sender.sendMessage(text("  Mode:       ").color(GRAY).append(text(CoreConfig.runtimeMode).color(YELLOW)));
-        sender.sendMessage(text("  Safe Mode:  ").color(GRAY).append(text(CoreConfig.isSafeMode() ? "yes" : "no").color(CoreConfig.isSafeMode() ? RED : GREEN)));
+        sender.sendMessage(empty());
+        sender.sendMessage(section("Runtime Mode"));
+        sender.sendMessage(kv("  Mode:       ", text(CoreConfig.runtimeMode), GRAY, YELLOW));
+        sender.sendMessage(kv("  Safe Mode:  ", text(CoreConfig.isSafeMode() ? "yes" : "no"), GRAY, CoreConfig.isSafeMode() ? RED : GREEN));
         
         // Active Features (from config)
-        sender.sendMessage(text(""));
-        sender.sendMessage(text("▸ Active Features").color(AQUA));
+        sender.sendMessage(empty());
+        sender.sendMessage(section("Active Features"));
         listActiveFeatures(sender);
 
         return true;
@@ -125,32 +122,59 @@ public final class StatusCommand extends PermissionedLeviathanSubcommand {
 
     private void listActiveFeatures(CommandSender sender) {
         sender.sendMessage(text("  Core Toggles:").color(GRAY));
-        sender.sendMessage(text("    Diagnostics:     ").color(GRAY).append(text(CoreConfig.diagnosticsEnabled ? "enabled" : "disabled").color(CoreConfig.diagnosticsEnabled ? GREEN : RED)));
-        sender.sendMessage(text("    Observability:   ").color(GRAY).append(text(CoreConfig.observabilityEnabled ? "enabled" : "disabled").color(CoreConfig.observabilityEnabled ? GREEN : RED)));
-        sender.sendMessage(text("    Benchmark:       ").color(GRAY).append(text(CoreConfig.benchmarkEnabled ? "enabled" : "disabled").color(CoreConfig.benchmarkEnabled ? GREEN : RED)));
-        sender.sendMessage(text("    Experimental:    ").color(GRAY).append(text(CoreConfig.experimentalEnabled ? "enabled" : "disabled").color(CoreConfig.experimentalEnabled ? YELLOW : GRAY)));
+        sender.sendMessage(featureLine("    Diagnostics:     ", CoreConfig.diagnosticsEnabled));
+        sender.sendMessage(featureLine("    Observability:   ", CoreConfig.observabilityEnabled));
+        sender.sendMessage(featureLine("    Benchmark:       ", CoreConfig.benchmarkEnabled));
+        sender.sendMessage(featureLine("    Experimental:    ", CoreConfig.experimentalEnabled));
         
         sender.sendMessage(text("  Feature Flags:").color(GRAY));
-        sender.sendMessage(text("    Linear Storage:  ").color(GRAY).append(text(CoreConfig.featureLinearStorage).color(getFeatureColor(CoreConfig.featureLinearStorage))));
-        sender.sendMessage(text("    Zstd Storage:    ").color(GRAY).append(text(CoreConfig.featureZstdStorage).color(getFeatureColor(CoreConfig.featureZstdStorage))));
-        sender.sendMessage(text("    DAB:             ").color(GRAY).append(text(CoreConfig.featureDAB).color(getFeatureColor(CoreConfig.featureDAB))));
-        sender.sendMessage(text("    Async Chunk:     ").color(GRAY).append(text(CoreConfig.featureAsyncChunk).color(getFeatureColor(CoreConfig.featureAsyncChunk))));
-        sender.sendMessage(text("    Region Tick:     ").color(GRAY).append(text(CoreConfig.featureRegionTick).color(getFeatureColor(CoreConfig.featureRegionTick))));
-        sender.sendMessage(text("    Plugin Async:    ").color(GRAY).append(text(CoreConfig.featurePluginAsync).color(getFeatureColor(CoreConfig.featurePluginAsync))));
-        sender.sendMessage(text("    Hopper Sleep:    ").color(GRAY).append(text(CoreConfig.featureHopperSleep).color(getFeatureColor(CoreConfig.featureHopperSleep))));
-        sender.sendMessage(text("    SIMD:            ").color(GRAY).append(text(CoreConfig.featureSIMD).color(getFeatureColor(CoreConfig.featureSIMD))));
-        sender.sendMessage(text("    Zstd Network:    ").color(GRAY).append(text(CoreConfig.featureZstdNetwork).color(getFeatureColor(CoreConfig.featureZstdNetwork))));
-        sender.sendMessage(text("    Mmap:            ").color(GRAY).append(text(CoreConfig.featureMmap).color(getFeatureColor(CoreConfig.featureMmap))));
-        sender.sendMessage(text("    RocksDB:         ").color(GRAY).append(text(CoreConfig.featureRocksDB).color(getFeatureColor(CoreConfig.featureRocksDB))));
+        sender.sendMessage(featureFlagLine("    Linear Storage:  ", CoreConfig.featureLinearStorage));
+        sender.sendMessage(featureFlagLine("    Zstd Storage:    ", CoreConfig.featureZstdStorage));
+        sender.sendMessage(featureFlagLine("    DAB:             ", CoreConfig.featureDAB));
+        sender.sendMessage(featureFlagLine("    Async Chunk:     ", CoreConfig.featureAsyncChunk));
+        sender.sendMessage(featureFlagLine("    Region Tick:     ", CoreConfig.featureRegionTick));
+        sender.sendMessage(featureFlagLine("    Plugin Async:    ", CoreConfig.featurePluginAsync));
+        sender.sendMessage(featureFlagLine("    Hopper Sleep:    ", CoreConfig.featureHopperSleep));
+        sender.sendMessage(featureFlagLine("    SIMD:            ", CoreConfig.featureSIMD));
+        sender.sendMessage(featureFlagLine("    Zstd Network:    ", CoreConfig.featureZstdNetwork));
+        sender.sendMessage(featureFlagLine("    Mmap:            ", CoreConfig.featureMmap));
+        sender.sendMessage(featureFlagLine("    RocksDB:         ", CoreConfig.featureRocksDB));
     }
 
-    private NamedTextColor getFeatureColor(String flag) {
+    private static Component featureLine(String label, boolean enabled) {
+        return text(label).color(GRAY)
+            .append(text(enabled ? "enabled" : "disabled").color(enabled ? GREEN : RED))
+            .build();
+    }
+
+    private static Component featureFlagLine(String label, String flag) {
+        return text(label).color(GRAY)
+            .append(text(flag).color(getFeatureColor(flag)))
+            .build();
+    }
+
+    private static NamedTextColor getFeatureColor(String flag) {
         return switch (flag) {
             case "enabled" -> GREEN;
             case "experimental" -> YELLOW;
             case "safe" -> AQUA;
             default -> RED; // disabled
         };
+    }
+
+    private static Component header(String title) {
+        return text("━━━━━━━━━━━━━ ").color(GOLD)
+            .append(text(title).color(YELLOW))
+            .append(text(" ━━━━━━━━━━━━━").color(GOLD))
+            .build();
+    }
+
+    private static Component section(String title) {
+        return text("▸ ").color(AQUA).append(text(title).color(AQUA)).build();
+    }
+
+    private static Component kv(String key, Component value, NamedTextColor keyColor, NamedTextColor valueColor) {
+        return text(key).color(keyColor).append(value.color(valueColor)).build();
     }
 
     private String formatBytes(long bytes) {

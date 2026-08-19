@@ -16,6 +16,7 @@ import java.lang.management.MemoryUsage;
 import java.text.DecimalFormat;
 import java.util.List;
 
+import static net.kyori.adventure.text.Component.empty;
 import static net.kyori.adventure.text.Component.text;
 import static net.kyori.adventure.text.format.NamedTextColor.*;
 
@@ -42,60 +43,71 @@ public final class RuntimeCommand extends PermissionedLeviathanSubcommand {
             return true;
         }
 
-        sender.sendMessage(text("━━━━━━━━━━━━━ ").color(GOLD)
-            .append(text("Leviathan Runtime & Hardware").color(YELLOW))
-            .append(text(" ━━━━━━━━━━━━━").color(GOLD))
-            .build());
+        sender.sendMessage(header("Leviathan Runtime & Hardware"));
 
         // Java Runtime
-        sender.sendMessage(text(""));
-        sender.sendMessage(text("▸ Java Runtime").color(AQUA));
-        sender.sendMessage(text("  Version: ").color(GRAY).append(text(runtime.javaVersion).color(WHITE)));
-        sender.sendMessage(text("  Vendor:  ").color(GRAY).append(text(runtime.javaVendor).color(WHITE)));
-        sender.sendMessage(text("  VM:      ").color(GRAY).append(text(runtime.vmName + " " + runtime.vmVersion).color(WHITE)));
-        sender.sendMessage(text("  Home:    ").color(GRAY).append(text(runtime.javaHome).color(WHITE)));
+        sender.sendMessage(section("Java Runtime"));
+        sender.sendMessage(kv("  Version: ", text(runtime.javaVersion), GRAY, WHITE));
+        sender.sendMessage(kv("  Vendor:  ", text(runtime.javaVendor), GRAY, WHITE));
+        sender.sendMessage(kv("  VM:      ", text(runtime.vmName + " " + runtime.vmVersion), GRAY, WHITE));
+        sender.sendMessage(kv("  Home:    ", text(runtime.javaHome), GRAY, WHITE));
 
         // OS & Architecture
-        sender.sendMessage(text(""));
-        sender.sendMessage(text("▸ Operating System").color(AQUA));
-        sender.sendMessage(text("  OS:      ").color(GRAY).append(text(runtime.osName + " " + runtime.osVersion).color(WHITE)));
-        sender.sendMessage(text("  Arch:    ").color(GRAY).append(text(runtime.architecture).color(WHITE)));
-        sender.sendMessage(text("  Kernel:  ").color(GRAY).append(text(runtime.kernelVersion).color(WHITE)));
+        sender.sendMessage(empty());
+        sender.sendMessage(section("Operating System"));
+        sender.sendMessage(kv("  OS:      ", text(runtime.osName + " " + runtime.osVersion), GRAY, WHITE));
+        sender.sendMessage(kv("  Arch:    ", text(runtime.architecture), GRAY, WHITE));
+        sender.sendMessage(kv("  Kernel:  ", text(runtime.kernelVersion), GRAY, WHITE));
 
         // CPU
-        sender.sendMessage(text(""));
-        sender.sendMessage(text("▸ CPU").color(AQUA));
-        sender.sendMessage(text("  Logical:     ").color(GRAY).append(text(String.valueOf(hardware.logicalProcessors)).color(WHITE)));
-        sender.sendMessage(text("  Physical:    ").color(GRAY).append(text(String.valueOf(hardware.physicalProcessors)).color(WHITE)));
-        sender.sendMessage(text("  Vendor:      ").color(GRAY).append(text(hardware.cpuVendor).color(WHITE)));
-        sender.sendMessage(text("  Model:       ").color(GRAY).append(text(hardware.cpuModel).color(WHITE)));
-        sender.sendMessage(text("  SIMD:        ").color(GRAY).append(text(hardware.hasSIMD ? "yes" : "no").color(hardware.hasSIMD ? GREEN : RED)));
-        sender.sendMessage(text("  AVX2:        ").color(GRAY).append(text(hardware.hasAVX2 ? "yes" : "no").color(hardware.hasAVX2 ? GREEN : RED)));
-        sender.sendMessage(text("  AVX-512:     ").color(GRAY).append(text(hardware.hasAVX512 ? "yes" : "no").color(hardware.hasAVX512 ? GREEN : RED)));
+        sender.sendMessage(empty());
+        sender.sendMessage(section("CPU"));
+        sender.sendMessage(kv("  Logical:     ", text(String.valueOf(hardware.logicalProcessors)), GRAY, WHITE));
+        sender.sendMessage(kv("  Physical:    ", text(String.valueOf(hardware.physicalProcessors)), GRAY, WHITE));
+        sender.sendMessage(kv("  Vendor:      ", text(hardware.cpuVendor), GRAY, WHITE));
+        sender.sendMessage(kv("  Model:       ", text(hardware.cpuModel), GRAY, WHITE));
+        sender.sendMessage(kv("  SIMD:        ", text(hardware.hasSIMD ? "yes" : "no"), GRAY, hardware.hasSIMD ? GREEN : RED));
+        sender.sendMessage(kv("  AVX2:        ", text(hardware.hasAVX2 ? "yes" : "no"), GRAY, hardware.hasAVX2 ? GREEN : RED));
+        sender.sendMessage(kv("  AVX-512:     ", text(hardware.hasAVX512 ? "yes" : "no"), GRAY, hardware.hasAVX512 ? GREEN : RED));
 
         // Memory
-        sender.sendMessage(text(""));
-        sender.sendMessage(text("▸ Memory").color(AQUA));
-        sender.sendMessage(text("  Physical:    ").color(GRAY).append(text(formatBytes(hardware.physicalMemoryBytes)).color(WHITE)));
-        sender.sendMessage(text("  Max Heap:    ").color(GRAY).append(text(formatBytes(hardware.maxHeapBytes)).color(WHITE)));
-        sender.sendMessage(text("  Direct Mem:  ").color(GRAY).append(text(formatBytes(hardware.directMemoryBytes)).color(WHITE)));
+        sender.sendMessage(empty());
+        sender.sendMessage(section("Memory"));
+        sender.sendMessage(kv("  Physical:    ", text(formatBytes(hardware.physicalMemoryBytes)), GRAY, WHITE));
+        sender.sendMessage(kv("  Max Heap:    ", text(formatBytes(hardware.maxHeapBytes)), GRAY, WHITE));
+        sender.sendMessage(kv("  Direct Mem:  ", text(formatBytes(hardware.directMemoryBytes)), GRAY, WHITE));
 
         // Current Memory Usage
         MemoryMXBean memoryMXBean = ManagementFactory.getMemoryMXBean();
         MemoryUsage heapUsage = memoryMXBean.getHeapMemoryUsage();
         MemoryUsage nonHeapUsage = memoryMXBean.getNonHeapMemoryUsage();
-        sender.sendMessage(text("  Heap Used:   ").color(GRAY).append(text(formatBytes(heapUsage.getUsed())).color(WHITE)));
-        sender.sendMessage(text("  Heap Committed:").color(GRAY).append(text(formatBytes(heapUsage.getCommitted())).color(WHITE)));
-        sender.sendMessage(text("  Non-Heap:    ").color(GRAY).append(text(formatBytes(nonHeapUsage.getUsed())).color(WHITE)));
+        sender.sendMessage(kv("  Heap Used:   ", text(formatBytes(heapUsage.getUsed())), GRAY, WHITE));
+        sender.sendMessage(kv("  Heap Committed:", text(formatBytes(heapUsage.getCommitted())), GRAY, WHITE));
+        sender.sendMessage(kv("  Non-Heap:    ", text(formatBytes(nonHeapUsage.getUsed())), GRAY, WHITE));
 
         // JVM Arguments
-        sender.sendMessage(text(""));
-        sender.sendMessage(text("▸ JVM Arguments").color(AQUA));
+        sender.sendMessage(empty());
+        sender.sendMessage(section("JVM Arguments"));
         for (String arg : runtime.inputArguments) {
-            sender.sendMessage(text("  ").color(GRAY).append(text(arg).color(GRAY)));
+            sender.sendMessage(text("  ").color(GRAY).append(text(arg).color(GRAY)).build());
         }
 
         return true;
+    }
+
+    private static Component header(String title) {
+        return text("━━━━━━━━━━━━━ ").color(GOLD)
+            .append(text(title).color(YELLOW))
+            .append(text(" ━━━━━━━━━━━━━").color(GOLD))
+            .build();
+    }
+
+    private static Component section(String title) {
+        return text("▸ ").color(AQUA).append(text(title).color(AQUA)).build();
+    }
+
+    private static Component kv(String key, Component value, NamedTextColor keyColor, NamedTextColor valueColor) {
+        return text(key).color(keyColor).append(value.color(valueColor)).build();
     }
 
     private String formatBytes(long bytes) {

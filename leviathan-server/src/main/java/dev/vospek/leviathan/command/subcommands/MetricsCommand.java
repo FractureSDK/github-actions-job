@@ -10,6 +10,7 @@ import org.bukkit.permissions.PermissionDefault;
 
 import java.util.List;
 
+import static net.kyori.adventure.text.Component.empty;
 import static net.kyori.adventure.text.Component.text;
 import static net.kyori.adventure.text.format.NamedTextColor.*;
 
@@ -50,115 +51,126 @@ public final class MetricsCommand extends PermissionedLeviathanSubcommand {
         MetricRegistry registry = MetricRegistry.get();
         MetricRegistry.MetricSnapshot snapshot = registry.snapshot();
 
-        sender.sendMessage(text("━━━━━━━━━━━━━ ").color(GOLD)
-            .append(text("Leviathan Metrics Registry").color(YELLOW))
-            .append(text(" ━━━━━━━━━━━━━").color(GOLD))
-            .build());
+        sender.sendMessage(header("Leviathan Metrics Registry"));
 
-        sender.sendMessage(text(""));
-        sender.sendMessage(text("Registered Metrics:").color(AQUA));
-        sender.sendMessage(text("  Counters:    ").color(GRAY).append(text(String.valueOf(snapshot.counters().size())).color(WHITE)));
-        sender.sendMessage(text("  Gauges:      ").color(GRAY).append(text(String.valueOf(snapshot.gauges().size())).color(WHITE)));
-        sender.sendMessage(text("  Histograms:  ").color(GRAY).append(text(String.valueOf(snapshot.histograms().size())).color(WHITE)));
-        sender.sendMessage(text("  Timers:      ").color(GRAY).append(text(String.valueOf(snapshot.timers().size())).color(WHITE)));
-        sender.sendMessage(text("  Rates:       ").color(GRAY).append(text(String.valueOf(snapshot.rates().size())).color(WHITE)));
+        sender.sendMessage(section("Registered Metrics:"));
+        sender.sendMessage(kv("  Counters:    ", text(String.valueOf(snapshot.counters().size())), GRAY, WHITE));
+        sender.sendMessage(kv("  Gauges:      ", text(String.valueOf(snapshot.gauges().size())), GRAY, WHITE));
+        sender.sendMessage(kv("  Histograms:  ", text(String.valueOf(snapshot.histograms().size())), GRAY, WHITE));
+        sender.sendMessage(kv("  Timers:      ", text(String.valueOf(snapshot.timers().size())), GRAY, WHITE));
+        sender.sendMessage(kv("  Rates:       ", text(String.valueOf(snapshot.rates().size())), GRAY, WHITE));
 
-        sender.sendMessage(text(""));
-        sender.sendMessage(text("Usage:").color(AQUA));
-        sender.sendMessage(text("  /leviathan metrics counters    ").color(GRAY).append(text("- List all counters").color(GRAY)));
-        sender.sendMessage(text("  /leviathan metrics gauges      ").color(GRAY).append(text("- List all gauges").color(GRAY)));
-        sender.sendMessage(text("  /leviathan metrics histograms  ").color(GRAY).append(text("- List all histograms").color(GRAY)));
-        sender.sendMessage(text("  /leviathan metrics timers      ").color(GRAY).append(text("- List all timers").color(GRAY)));
-        sender.sendMessage(text("  /leviathan metrics rates       ").color(GRAY).append(text("- List all rates").color(GRAY)));
-        sender.sendMessage(text("  /leviathan metrics snapshot    ").color(GRAY).append(text("- Full snapshot").color(GRAY)));
+        sender.sendMessage(empty());
+        sender.sendMessage(section("Usage:"));
+        sender.sendMessage(text("  /leviathan metrics counters    ").color(GRAY).append(text("- List all counters").color(GRAY)).build());
+        sender.sendMessage(text("  /leviathan metrics gauges      ").color(GRAY).append(text("- List all gauges").color(GRAY)).build());
+        sender.sendMessage(text("  /leviathan metrics histograms  ").color(GRAY).append(text("- List all histograms").color(GRAY)).build());
+        sender.sendMessage(text("  /leviathan metrics timers      ").color(GRAY).append(text("- List all timers").color(GRAY)).build());
+        sender.sendMessage(text("  /leviathan metrics rates       ").color(GRAY).append(text("- List all rates").color(GRAY)).build());
+        sender.sendMessage(text("  /leviathan metrics snapshot    ").color(GRAY).append(text("- Full snapshot").color(GRAY)).build());
     }
 
     private void showCounters(CommandSender sender) {
         MetricRegistry.MetricSnapshot snapshot = MetricRegistry.get().snapshot();
 
-        sender.sendMessage(text("━━ Counters ━━").color(GOLD));
+        sender.sendMessage(section("Counters"));
         if (snapshot.counters().isEmpty()) {
             sender.sendMessage(text("  (none)").color(GRAY));
             return;
         }
 
         for (MetricRegistry.Counter counter : snapshot.counters().values()) {
-            sender.sendMessage(text("  " + counter.getName() + " = " + counter.get()).color(WHITE));
+            sender.sendMessage(text("  " + counter.getName() + " = " + counter.get()).color(WHITE).build());
         }
     }
 
     private void showGauges(CommandSender sender) {
         MetricRegistry.MetricSnapshot snapshot = MetricRegistry.get().snapshot();
 
-        sender.sendMessage(text("━━ Gauges ━━").color(GOLD));
+        sender.sendMessage(section("Gauges"));
         if (snapshot.gauges().isEmpty()) {
             sender.sendMessage(text("  (none)").color(GRAY));
             return;
         }
 
         for (MetricRegistry.Gauge<?> gauge : snapshot.gauges().values()) {
-            sender.sendMessage(text("  " + gauge.toString()).color(WHITE));
+            sender.sendMessage(text("  " + gauge.toString()).color(WHITE).build());
         }
     }
 
     private void showHistograms(CommandSender sender) {
         MetricRegistry.MetricSnapshot snapshot = MetricRegistry.get().snapshot();
 
-        sender.sendMessage(text("━━ Histograms ━━").color(GOLD));
+        sender.sendMessage(section("Histograms"));
         if (snapshot.histograms().isEmpty()) {
             sender.sendMessage(text("  (none)").color(GRAY));
             return;
         }
 
         for (MetricRegistry.Histogram histogram : snapshot.histograms().values()) {
-            sender.sendMessage(text("  " + histogram.toString()).color(WHITE));
+            sender.sendMessage(text("  " + histogram.toString()).color(WHITE).build());
         }
     }
 
     private void showTimers(CommandSender sender) {
         MetricRegistry.MetricSnapshot snapshot = MetricRegistry.get().snapshot();
 
-        sender.sendMessage(text("━━ Timers ━━").color(GOLD));
+        sender.sendMessage(section("Timers"));
         if (snapshot.timers().isEmpty()) {
             sender.sendMessage(text("  (none)").color(GRAY));
             return;
         }
 
         for (MetricRegistry.Timer timer : snapshot.timers().values()) {
-            sender.sendMessage(text("  " + timer.toString()).color(WHITE));
+            sender.sendMessage(text("  " + timer.toString()).color(WHITE).build());
         }
     }
 
     private void showRates(CommandSender sender) {
         MetricRegistry.MetricSnapshot snapshot = MetricRegistry.get().snapshot();
 
-        sender.sendMessage(text("━━ Rates ━━").color(GOLD));
+        sender.sendMessage(section("Rates"));
         if (snapshot.rates().isEmpty()) {
             sender.sendMessage(text("  (none)").color(GRAY));
             return;
         }
 
         for (MetricRegistry.Rate rate : snapshot.rates().values()) {
-            sender.sendMessage(text("  " + rate.toString()).color(WHITE));
+            sender.sendMessage(text("  " + rate.toString()).color(WHITE).build());
         }
     }
 
     private void showSnapshot(CommandSender sender) {
         MetricRegistry.MetricSnapshot snapshot = MetricRegistry.get().snapshot();
 
-        sender.sendMessage(text("━━ Full Snapshot ━━").color(GOLD));
-        sender.sendMessage(text(snapshot.toString()).color(GRAY));
-        sender.sendMessage(text(""));
+        sender.sendMessage(header("Full Snapshot"));
+        sender.sendMessage(text(snapshot.toString()).color(GRAY).build());
+        sender.sendMessage(empty());
 
         showCounters(sender);
-        sender.sendMessage(text(""));
+        sender.sendMessage(empty());
         showGauges(sender);
-        sender.sendMessage(text(""));
+        sender.sendMessage(empty());
         showHistograms(sender);
-        sender.sendMessage(text(""));
+        sender.sendMessage(empty());
         showTimers(sender);
-        sender.sendMessage(text(""));
+        sender.sendMessage(empty());
         showRates(sender);
+    }
+
+    private static Component header(String title) {
+        return text("━━━━━━━━━━━━━ ").color(GOLD)
+            .append(text(title).color(YELLOW))
+            .append(text(" ━━━━━━━━━━━━━").color(GOLD))
+            .build();
+    }
+
+    private static Component section(String title) {
+        return text("▸ ").color(AQUA).append(text(title).color(AQUA)).build();
+    }
+
+    private static Component kv(String key, Component value, NamedTextColor keyColor, NamedTextColor valueColor) {
+        return text(key).color(keyColor).append(value.color(valueColor)).build();
     }
 
     @Override

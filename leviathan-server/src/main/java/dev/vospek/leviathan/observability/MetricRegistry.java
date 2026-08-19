@@ -5,7 +5,9 @@ import org.apache.logging.log4j.Logger;
 
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.DoubleSupplier;
+import java.util.function.IntSupplier;
 import java.util.function.LongSupplier;
 import java.util.function.Supplier;
 
@@ -14,7 +16,7 @@ import java.util.function.Supplier;
  * <p>
  * 所有模块通过此类注册和访问指标，支持五种指标类型：
  * <ul>
- *   <li>{@link Counter} - 单调递增计数器</li>
+ *   <li>{@link Counter} - 单调递增计数器 (线程安全)</li>
  *   <li>{@link Gauge} - 瞬时值观测</li>
  *   <li>{@link Histogram} - 分布统计（支持百分位数）</li>
  *   <li>{@link Timer} - 耗时统计（内部使用 Histogram）</li>
@@ -62,7 +64,7 @@ public final class MetricRegistry {
     // ==================== Gauge ====================
 
     /**
-     * 注册数值型 Gauge
+     * 注册数值型 Gauge (推荐使用具体类型方法)
      */
     public <T extends Number> Gauge<T> gauge(String name, Supplier<T> supplier) {
         String key = buildKey(name);
@@ -88,7 +90,7 @@ public final class MetricRegistry {
     /**
      * 注册整型 Gauge
      */
-    public Gauge<Integer> gaugeInt(String name, java.util.function.IntSupplier supplier) {
+    public Gauge<Integer> gaugeInt(String name, IntSupplier supplier) {
         return gauge(name, () -> supplier.getAsInt());
     }
 
@@ -193,29 +195,29 @@ public final class MetricRegistry {
     // ==================== Metric Types ====================
 
     /**
-     * 单调递增计数器
+     * 单调递增计数器 (线程安全)
      */
     public static final class Counter {
         private final String name;
-        private long value = 0;
+        private final AtomicLong value = new AtomicLong(0);
 
         private Counter(String name) {
             this.name = name;
         }
 
         public void inc() {
-            value++;
+            value.incrementAndGet();
         }
 
         public void inc(long delta) {
             if (delta < 0) {
                 throw new IllegalArgumentException("Counter cannot decrease");
             }
-            value += delta;
+            value.addAndGet(delta);
         }
 
         public long get() {
-            return value;
+            return value.get();
         }
 
         public String getName() {
@@ -224,7 +226,7 @@ public final class MetricRegistry {
 
         @Override
         public String toString() {
-            return "Counter{name='" + name + "', value=" + value + "}";
+            return "Counter{name='" + name + "', value=" + value.get() + "}";
         }
     }
 
@@ -278,6 +280,14 @@ public final class MetricRegistry {
         private static final double MIN_VALUE = 1.0; // 1 microsecond
         private static final double MAX_VALUE = 10_000_000.0; // 10 seconds
         private static final double MULTIPLIER = Math.pow(MAX_VALUE / MIN_VALUE, 1.0 / (BUCKET_COUNT - 1));
+        // 预计算桶边界，避免热路径中的 log/pow 计算
+        private static final double[] BUCKET_BOUNDARIES = new double[BUCKET_COUNT];
+
+        static {
+            for (int i = 0; i < BUCKET_COUNT; i++) {
+                BUCKET_BOUNDARIES[i] = MIN_VALUE * Math.pow(MULTIPLIER, i);
+            }
+        }
 
         private final long[] buckets = new long[BUCKET_COUNT];
         private long count = 0;
@@ -323,11 +333,17 @@ public final class MetricRegistry {
         private int valueToBucket(double value) {
             if (value <= MIN_VALUE) return 0;
             if (value >= MAX_VALUE) return BUCKET_COUNT - 1;
-            return (int) Math.floor(Math.log(value / MIN_VALUE) / Math.log(MULTIPLIER));
-        }
-
-        private double bucketToValue(int bucket) {
-            return MIN_VALUE * Math.pow(MULTIPLIER, bucket);
+            // 二分查找预计算的边界，比 log/pow 更快
+            int low = 0, high = BUCKET_COUNT - 1;
+            while (low < high) {
+                int mid = (low + high) >>> 1;
+                if (BUCKET_BOUNDARIES[mid] < value) {
+                    low = mid + 1;
+                } else {
+                    high = mid;
+                }
+            }
+            return low;
         }
 
         public long getCount() {
@@ -364,7 +380,7 @@ public final class MetricRegistry {
             for (int i = 0; i < BUCKET_COUNT; i++) {
                 accumulated += buckets[i];
                 if (accumulated >= target) {
-                    return bucketToValue(i);
+                    return BUCKET_BOUNDARIES[i];
                 }
             }
             return getMax();
@@ -452,11 +468,11 @@ public final class MetricRegistry {
     }
 
     /**
-     * 速率计 - 单位时间内的事件数
+     * 速率计 - 单位时间内的事件数 (滑动窗口)
      */
     public static final class Rate {
         private final String name;
-        private long count = 0;
+        private final AtomicLong count = new AtomicLong(0);
         private long lastTickCount = 0;
         private long lastTickTime = System.nanoTime();
 
@@ -465,11 +481,11 @@ public final class MetricRegistry {
         }
 
         public void mark() {
-            count++;
+            count.incrementAndGet();
         }
 
         public void mark(long n) {
-            count += n;
+            count.addAndGet(n);
         }
 
         /**
@@ -480,22 +496,23 @@ public final class MetricRegistry {
             long elapsedNanos = now - lastTickTime;
             if (elapsedNanos <= 0) return 0;
 
-            long deltaCount = count - lastTickCount;
+            long currentCount = count.get();
+            long deltaCount = currentCount - lastTickCount;
             double rate = (deltaCount * 1_000_000_000.0) / elapsedNanos;
 
-            lastTickCount = count;
+            lastTickCount = currentCount;
             lastTickTime = now;
 
             return rate;
         }
 
         public long getCount() {
-            return count;
+            return count.get();
         }
 
         @Override
         public String toString() {
-            return String.format("Rate{name='%s', count=%d, rate=%.2f/s}", name, count, getRate());
+            return String.format("Rate{name='%s', count=%d, rate=%.2f/s}", name, count.get(), getRate());
         }
     }
 
