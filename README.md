@@ -21,7 +21,7 @@
 - **Allows all characters in usernames**, including Chinese and other characters
 - **Fixes** some Minecraft bugs
 - **Mod Protocols** support
-- **More customized** relying on features of [Purpur](https://github.com/PurpurMC/Purpur)
+- **Purpur-derived features**, such as the `/afk` command ([Purpur](https://github.com/PurpurMC/Purpur))
 - **Linear region file format**, to save disk space
 - **Maintenance friendly**, integrating with [Sentry](https://sentry.io/welcome/) of [Pufferfish](https://github.com/pufferfish-gg/Pufferfish) to easily track all errors coming from your server in extreme detail
 - And more...
@@ -29,8 +29,12 @@
 ## 📥 Download
 Download Leviathan from [GitLab Releases](https://gitlab.com/vospek/minecraft-dev/leviathan/-/releases)
 
+Requires **Java 25+** to run.
+
 ## 📦 Building
 Building a Paperclip JAR for distribution:
+
+Requires **JDK 25**.
 ```bash
 ./gradlew applyAllPatches && ./gradlew createPaperclipJar
 ```
@@ -79,10 +83,18 @@ java {
 ```
 </details>
 
-## 📊 bStats
-Leviathan uses [bStats](https://bstats.org) to collect anonymous usage statistics, such as how many servers run Leviathan and which Minecraft versions are in use. You can opt out by setting `enabled: false` in `plugins/bStats/config.yml`.
+## 🛠️ Configuration
+All settings are stored in `config/`:
+- `config/leviathan-global.yml` — global feature flags and tuning (e.g. `misc.region-format.region-format-name` to switch between MCA and the linear region format, `misc.sentry.dsn` for Sentry error reporting)
+- `config/leviathan-world-defaults.yml` — defaults for every world (per-world configuration is planned)
 
-[View Leviathan on bStats](https://bstats.org/plugin/server-implementation/Leviathan)
+All features are config-gated, so any change can be rolled back by disabling its flag and restarting the server.
+
+## 📈 Monitoring
+Leviathan has built-in observability for the tick loop, CPU, memory, GC and threads:
+- `/leviathan stats` — on-demand report of TPS/MSPT, CPU, memory, GC and thread metrics
+- Tick diagnostics with P50/P95/P99/Max windows for TPS/MSPT
+- Optional [Sentry](https://sentry.io/welcome/) error reporting — set `misc.sentry.dsn` in `config/leviathan-global.yml` or the `SENTRY_DSN` environment variable (leave blank to disable)
 
 ## ⚖️ License
 Leviathan is licensed under various open source licenses from its upstream projects. See [LICENSE.md](LICENSE.md) for full details.

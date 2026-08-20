@@ -21,7 +21,7 @@
 - **允许用户名使用所有字符**，包括中文和其他字符
 - **修复**一些 Minecraft 的 bug
 - **模组协议**支持
-- **更多自定义配置项**，源自 [Purpur](https://github.com/PurpurMC/Purpur) 的特性
+- **Purpur 衍生特性**，例如 `/afk` 命令（[Purpur](https://github.com/PurpurMC/Purpur)）
 - **线性区域文件格式**，节省磁盘空间
 - **运维友好**，集成 [Pufferfish](https://github.com/pufferfish-gg/Pufferfish) 的 [Sentry](https://sentry.io/welcome/)，轻松详细追踪服务器的所有报错
 - 以及更多...
@@ -29,8 +29,12 @@
 ## 📥 下载
 在 [GitLab Releases](https://gitlab.com/vospek/minecraft-dev/leviathan/-/releases) 获取最新构建版本
 
+运行需要 **Java 25+**。
+
 ## 📦 构建
 构建用于分发的 Paperclip JAR：
+
+需要 **JDK 25**。
 ```bash
 ./gradlew applyAllPatches && ./gradlew createPaperclipJar
 ```
@@ -79,10 +83,18 @@ java {
 ```
 </details>
 
-## 📊 bStats
-Leviathan 使用 [bStats](https://bstats.org) 收集匿名使用统计，例如运行 Leviathan 的服务器数量和正在使用的 Minecraft 版本分布。你可以在 `plugins/bStats/config.yml` 中设置 `enabled: false` 来退出统计。
+## 🛠️ 配置
+所有配置存放在 `config/` 目录下：
+- `config/leviathan-global.yml` — 全局功能开关与调优（例如 `misc.region-format.region-format-name` 可在 MCA 与线性区域格式之间切换，`misc.sentry.dsn` 配置 Sentry 错误上报）
+- `config/leviathan-world-defaults.yml` — 所有世界的默认配置（按世界配置正在规划中）
 
-[在 bStats 上查看 Leviathan](https://bstats.org/plugin/server-implementation/Leviathan)
+所有功能都由配置开关控制，任何改动都可以通过关闭对应开关并重启服务器来回滚。
+
+## 📈 监控
+Leviathan 内置对 Tick 循环、CPU、内存、GC 与线程的可观测能力：
+- `/leviathan stats` — 按需查看 TPS/MSPT、CPU、内存、GC 与线程指标报告
+- Tick 诊断，提供 TPS/MSPT 的 P50/P95/P99/Max 窗口数据
+- 可选的 [Sentry](https://sentry.io/welcome/) 错误上报 — 在 `config/leviathan-global.yml` 中设置 `misc.sentry.dsn`，或使用 `SENTRY_DSN` 环境变量（留空即禁用）
 
 ## ⚖️ 许可证
 Leviathan 根据其上游项目采用多种开源许可证授权。请参阅 [LICENSE.md](../../LICENSE.md) 了解完整的详细信息。
