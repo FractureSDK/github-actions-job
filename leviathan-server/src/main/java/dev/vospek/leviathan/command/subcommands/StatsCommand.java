@@ -1,9 +1,27 @@
 package dev.vospek.leviathan.command.subcommands;
 
+import static net.kyori.adventure.text.Component.empty;
+import static net.kyori.adventure.text.Component.text;
+import static net.kyori.adventure.text.format.NamedTextColor.AQUA;
+import static net.kyori.adventure.text.format.NamedTextColor.GOLD;
+import static net.kyori.adventure.text.format.NamedTextColor.GRAY;
+import static net.kyori.adventure.text.format.NamedTextColor.GREEN;
+import static net.kyori.adventure.text.format.NamedTextColor.RED;
+import static net.kyori.adventure.text.format.NamedTextColor.WHITE;
+import static net.kyori.adventure.text.format.NamedTextColor.YELLOW;
+
 import ca.spottedleaf.common.time.TickData;
 import dev.vospek.leviathan.command.LeviathanCommand;
 import dev.vospek.leviathan.command.PermissionedLeviathanSubcommand;
 import dev.vospek.leviathan.config.modules.async.SparklyPaperParallelWorldTicking;
+import java.lang.management.GarbageCollectorMXBean;
+import java.lang.management.ManagementFactory;
+import java.lang.management.MemoryMXBean;
+import java.lang.management.MemoryUsage;
+import java.lang.management.OperatingSystemMXBean;
+import java.lang.management.ThreadMXBean;
+import java.text.DecimalFormat;
+import java.util.List;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.format.NamedTextColor;
 import net.minecraft.server.MinecraftServer;
@@ -11,22 +29,16 @@ import org.bukkit.Bukkit;
 import org.bukkit.command.CommandSender;
 import org.bukkit.permissions.PermissionDefault;
 
-import java.lang.management.ManagementFactory;
-import java.lang.management.MemoryMXBean;
-import java.lang.management.MemoryUsage;
-import java.lang.management.GarbageCollectorMXBean;
-import java.lang.management.OperatingSystemMXBean;
-import java.lang.management.ThreadMXBean;
-import java.text.DecimalFormat;
-import java.util.List;
-
-import static net.kyori.adventure.text.Component.empty;
-import static net.kyori.adventure.text.Component.text;
-import static net.kyori.adventure.text.format.NamedTextColor.*;
-
+/**
+ * /leviathan stats 子命令
+ * <p>
+ * 展示服务器 TPS、CPU、内存、GC、线程与实体/区块等运行状态。
+ */
 public final class StatsCommand extends PermissionedLeviathanSubcommand {
 
+    /** 子命令字面量 */
     public static final String LITERAL_ARGUMENT = "stats";
+    /** 该子命令所需的权限节点 */
     public static final String PERM = LeviathanCommand.BASE_PERM + "." + LITERAL_ARGUMENT;
     private static final DecimalFormat DF = new DecimalFormat("########0.0");
 
@@ -35,7 +47,9 @@ public final class StatsCommand extends PermissionedLeviathanSubcommand {
     }
 
     @Override
-    public boolean execute(final CommandSender sender, final String subCommand, final String[] args) {
+    public boolean execute(
+        final CommandSender sender, final String subCommand, final String[] args
+    ) {
         MinecraftServer server = MinecraftServer.getServer();
 
         sender.sendMessage(header("Leviathan Server Stats"));
@@ -77,7 +91,9 @@ public final class StatsCommand extends PermissionedLeviathanSubcommand {
         return text("▸ ").color(AQUA).append(text(title).color(AQUA));
     }
 
-    private static Component kv(String key, Component value, NamedTextColor keyColor, NamedTextColor valueColor) {
+    private static Component kv(
+        String key, Component value, NamedTextColor keyColor, NamedTextColor valueColor
+    ) {
         return text(key).color(keyColor).append(value.color(valueColor));
     }
 
@@ -121,8 +137,11 @@ public final class StatsCommand extends PermissionedLeviathanSubcommand {
     }
 
     private double[] getTPS(TickData tickData, MinecraftServer server) {
-        TickData.TickReportData reportData = tickData.generateTickReport(null, System.nanoTime(), server.tickRateManager().nanosecondsPerTick());
-        double avgD = reportData == null ? 0.0 : reportData.timePerTickData().segmentAll().average() * 1.0E-6D;
+        TickData.TickReportData reportData = tickData.generateTickReport(
+            null, System.nanoTime(), server.tickRateManager().nanosecondsPerTick()
+        );
+        double avgD = reportData == null ? 0.0
+            : reportData.timePerTickData().segmentAll().average() * 1.0E-6D;
         double tps = avgD > 0 ? Math.min(1000.0 / avgD, 20.0) : 20.0;
         return new double[]{tps, avgD};
     }
@@ -158,12 +177,16 @@ public final class StatsCommand extends PermissionedLeviathanSubcommand {
         return RED;
     }
 
+    @SuppressWarnings("deprecation") // getSystemLoadAverage 自 JDK 14 起弃用，只读展示保留兼容
     private void displayCPU(CommandSender sender) {
         OperatingSystemMXBean osBean = ManagementFactory.getOperatingSystemMXBean();
         sender.sendMessage(section("CPU"));
-        sender.sendMessage(kv("  System Load: ", text(DF.format(osBean.getSystemLoadAverage())), GRAY, WHITE));
-        sender.sendMessage(kv("  Process CPU: ", text(getProcessCpuPercent(osBean) + "%"), GRAY, WHITE));
-        sender.sendMessage(kv("  Available:   ", text(Runtime.getRuntime().availableProcessors() + " cores"), GRAY, WHITE));
+        sender.sendMessage(
+            kv("  System Load: ", text(DF.format(osBean.getSystemLoadAverage())), GRAY, WHITE));
+        sender.sendMessage(
+            kv("  Process CPU: ", text(getProcessCpuPercent(osBean) + "%"), GRAY, WHITE));
+        String available = Runtime.getRuntime().availableProcessors() + " cores";
+        sender.sendMessage(kv("  Available:   ", text(available), GRAY, WHITE));
     }
 
     private double getProcessCpuPercent(OperatingSystemMXBean osBean) {
@@ -178,10 +201,17 @@ public final class StatsCommand extends PermissionedLeviathanSubcommand {
         MemoryUsage heapUsage = memoryMXBean.getHeapMemoryUsage();
         MemoryUsage nonHeapUsage = memoryMXBean.getNonHeapMemoryUsage();
 
+        String heapUsedFormatted = formatBytes(heapUsage.getUsed());
+        String heapMaxFormatted = formatBytes(heapUsage.getMax());
+        String heapSummary = heapUsedFormatted + " / " + heapMaxFormatted
+            + " (" + DF.format(heapUsage.getUsed() * 100.0 / heapUsage.getMax()) + "%)";
+
         sender.sendMessage(section("Memory"));
-        sender.sendMessage(kv("  Heap:     ", text(formatBytes(heapUsage.getUsed()) + " / " + formatBytes(heapUsage.getMax()) + " (" + DF.format(heapUsage.getUsed() * 100.0 / heapUsage.getMax()) + "%)"), GRAY, WHITE));
-        sender.sendMessage(kv("  Committed:", text(formatBytes(heapUsage.getCommitted())), GRAY, WHITE));
-        sender.sendMessage(kv("  Non-Heap: ", text(formatBytes(nonHeapUsage.getUsed())), GRAY, WHITE));
+        sender.sendMessage(kv("  Heap:     ", text(heapSummary), GRAY, WHITE));
+        sender.sendMessage(
+            kv("  Committed:", text(formatBytes(heapUsage.getCommitted())), GRAY, WHITE));
+        sender.sendMessage(
+            kv("  Non-Heap: ", text(formatBytes(nonHeapUsage.getUsed())), GRAY, WHITE));
     }
 
     private void displayGC(CommandSender sender) {
@@ -200,17 +230,23 @@ public final class StatsCommand extends PermissionedLeviathanSubcommand {
                 .append(text(DF.format(time) + " ms").color(WHITE)));
         }
 
-        sender.sendMessage(kv("  Total: ", text(totalCollections + " collections, " + DF.format(totalTime) + " ms"), GRAY, WHITE));
+        String totalLine = totalCollections + " collections, " + DF.format(totalTime) + " ms";
+        sender.sendMessage(kv("  Total: ", text(totalLine), GRAY, WHITE));
     }
 
     private void displayThreads(CommandSender sender) {
         ThreadMXBean threadMXBean = ManagementFactory.getThreadMXBean();
+        double totalCpuSeconds = getTotalThreadCpuTimeSeconds(threadMXBean);
 
         sender.sendMessage(section("Threads"));
-        sender.sendMessage(kv("  Live:     ", text(String.valueOf(threadMXBean.getThreadCount())), GRAY, WHITE));
-        sender.sendMessage(kv("  Peak:     ", text(String.valueOf(threadMXBean.getPeakThreadCount())), GRAY, WHITE));
-        sender.sendMessage(kv("  Daemon:   ", text(String.valueOf(threadMXBean.getDaemonThreadCount())), GRAY, WHITE));
-        sender.sendMessage(kv("  Total CPU:", text(DF.format(getTotalThreadCpuTimeSeconds(threadMXBean)) + " s"), GRAY, WHITE));
+        String live = String.valueOf(threadMXBean.getThreadCount());
+        sender.sendMessage(kv("  Live:     ", text(live), GRAY, WHITE));
+        String peak = String.valueOf(threadMXBean.getPeakThreadCount());
+        sender.sendMessage(kv("  Peak:     ", text(peak), GRAY, WHITE));
+        String daemon = String.valueOf(threadMXBean.getDaemonThreadCount());
+        sender.sendMessage(kv("  Daemon:   ", text(daemon), GRAY, WHITE));
+        String totalCpu = DF.format(totalCpuSeconds) + " s";
+        sender.sendMessage(kv("  Total CPU:", text(totalCpu), GRAY, WHITE));
     }
 
     private double getTotalThreadCpuTimeSeconds(ThreadMXBean threadMXBean) {
@@ -250,7 +286,9 @@ public final class StatsCommand extends PermissionedLeviathanSubcommand {
     }
 
     @Override
-    public List<String> tabComplete(final CommandSender sender, final String subCommand, final String[] args) {
+    public List<String> tabComplete(
+        final CommandSender sender, final String subCommand, final String[] args
+    ) {
         return List.of();
     }
 }

@@ -6,13 +6,15 @@ import java.lang.management.MemoryMXBean;
 import java.lang.management.MemoryPoolMXBean;
 import java.lang.management.MemoryUsage;
 import java.lang.management.OperatingSystemMXBean;
+import java.lang.reflect.Field;
 import java.lang.reflect.Method;
+import java.util.ArrayList;
 import java.util.List;
 
 /**
  * 内存指标收集器
  * <p>
- * 记录 Heap Used/Max/Committed、Direct Memory、Native Memory、GC Count/Pause、Allocation Rate 等指标。
+ * 记录 Heap/Non-Heap、Direct Memory、GC Count/Time、Allocation Rate 等指标。
  * <p>
  * 对应 Phase 0-E: P0-014
  */
@@ -20,9 +22,12 @@ public final class MemoryMetrics {
 
     private static final MetricRegistry REGISTRY = MetricRegistry.get();
     private static final MemoryMXBean MEMORY_BEAN = ManagementFactory.getMemoryMXBean();
-    private static final OperatingSystemMXBean OS_BEAN = ManagementFactory.getOperatingSystemMXBean();
+    private static final OperatingSystemMXBean OS_BEAN =
+        ManagementFactory.getOperatingSystemMXBean();
     private static final com.sun.management.OperatingSystemMXBean SUN_OS_BEAN =
-        OS_BEAN instanceof com.sun.management.OperatingSystemMXBean ? (com.sun.management.OperatingSystemMXBean) OS_BEAN : null;
+        OS_BEAN instanceof com.sun.management.OperatingSystemMXBean
+            ? (com.sun.management.OperatingSystemMXBean) OS_BEAN
+            : null;
 
     // Unsafe 反射只做一次（Java 25 之后 JDK 提供 getDirectMemory 的受支持替代前仍需反射）
     private static final Method UNSAFE_GET_DIRECT_MEMORY;
@@ -35,7 +40,7 @@ public final class MemoryMetrics {
         Object unsafe = null;
         try {
             Class<?> unsafeClass = Class.forName("sun.misc.Unsafe");
-            java.lang.reflect.Field field = unsafeClass.getDeclaredField("theUnsafe");
+            Field field = unsafeClass.getDeclaredField("theUnsafe");
             field.setAccessible(true);
             unsafe = field.get(null);
             getDirectMemory = unsafeClass.getMethod("getDirectMemory");
@@ -75,19 +80,37 @@ public final class MemoryMetrics {
 
     private MemoryMetrics() {
         // Heap
-        this.heapUsed = REGISTRY.gaugeLong("memory.heap.used", () -> MEMORY_BEAN.getHeapMemoryUsage().getUsed());
-        this.heapMax = REGISTRY.gaugeLong("memory.heap.max", () -> MEMORY_BEAN.getHeapMemoryUsage().getMax());
-        this.heapCommitted = REGISTRY.gaugeLong("memory.heap.committed", () -> MEMORY_BEAN.getHeapMemoryUsage().getCommitted());
-        this.heapUsagePercent = REGISTRY.gaugeDouble("memory.heap.usage_percent", this::calculateHeapUsagePercent);
+        this.heapUsed = REGISTRY.gaugeLong(
+            "memory.heap.used", () -> MEMORY_BEAN.getHeapMemoryUsage().getUsed()
+        );
+        this.heapMax = REGISTRY.gaugeLong(
+            "memory.heap.max", () -> MEMORY_BEAN.getHeapMemoryUsage().getMax()
+        );
+        this.heapCommitted = REGISTRY.gaugeLong(
+            "memory.heap.committed", () -> MEMORY_BEAN.getHeapMemoryUsage().getCommitted()
+        );
+        this.heapUsagePercent = REGISTRY.gaugeDouble(
+            "memory.heap.usage_percent", this::calculateHeapUsagePercent
+        );
 
         // Non-Heap
-        this.nonHeapUsed = REGISTRY.gaugeLong("memory.nonheap.used", () -> MEMORY_BEAN.getNonHeapMemoryUsage().getUsed());
-        this.nonHeapMax = REGISTRY.gaugeLong("memory.nonheap.max", () -> MEMORY_BEAN.getNonHeapMemoryUsage().getMax());
-        this.nonHeapCommitted = REGISTRY.gaugeLong("memory.nonheap.committed", () -> MEMORY_BEAN.getNonHeapMemoryUsage().getCommitted());
+        this.nonHeapUsed = REGISTRY.gaugeLong(
+            "memory.nonheap.used", () -> MEMORY_BEAN.getNonHeapMemoryUsage().getUsed()
+        );
+        this.nonHeapMax = REGISTRY.gaugeLong(
+            "memory.nonheap.max", () -> MEMORY_BEAN.getNonHeapMemoryUsage().getMax()
+        );
+        this.nonHeapCommitted = REGISTRY.gaugeLong(
+            "memory.nonheap.committed", () -> MEMORY_BEAN.getNonHeapMemoryUsage().getCommitted()
+        );
 
         // Direct Memory (通过 Unsafe 估算)
-        this.directMemoryUsed = REGISTRY.gaugeLong("memory.direct.used", this::estimateDirectMemoryUsed);
-        this.directMemoryMax = REGISTRY.gaugeLong("memory.direct.max", this::estimateDirectMemoryMax);
+        this.directMemoryUsed = REGISTRY.gaugeLong(
+            "memory.direct.used", this::estimateDirectMemoryUsed
+        );
+        this.directMemoryMax = REGISTRY.gaugeLong(
+            "memory.direct.max", this::estimateDirectMemoryMax
+        );
 
         // GC
         this.gcCount = REGISTRY.gaugeLong("gc.total.count", this::calculateGcCount);
@@ -95,7 +118,9 @@ public final class MemoryMetrics {
         this.gcCpuPercent = REGISTRY.gaugeDouble("gc.cpu_percent", this::calculateGcCpuPercent);
 
         // Allocation Rate
-        this.allocationRate = REGISTRY.gaugeDouble("memory.allocation_rate_mb_s", this::calculateAllocationRate);
+        this.allocationRate = REGISTRY.gaugeDouble(
+            "memory.allocation_rate_mb_s", this::calculateAllocationRate
+        );
 
         // 初始化基线
         this.lastHeapUsed = MEMORY_BEAN.getHeapMemoryUsage().getUsed();
@@ -215,11 +240,13 @@ public final class MemoryMetrics {
      */
     public List<MemoryPoolInfo> getMemoryPools() {
         List<MemoryPoolMXBean> pools = ManagementFactory.getMemoryPoolMXBeans();
-        List<MemoryPoolInfo> result = new java.util.ArrayList<>(pools.size());
+        List<MemoryPoolInfo> result = new ArrayList<>(pools.size());
 
         for (MemoryPoolMXBean pool : pools) {
             MemoryUsage usage = pool.getUsage();
-            if (usage == null) continue; // 某些池在无效/未使用时返回 null
+            if (usage == null) {
+                continue; // 某些池在无效/未使用时返回 null
+            }
             result.add(new MemoryPoolInfo(
                 pool.getName(),
                 pool.getType().toString(),

@@ -6,17 +6,20 @@ import java.lang.management.OperatingSystemMXBean;
 /**
  * CPU 指标收集器
  * <p>
- * 记录进程 CPU、系统 CPU、主线程 CPU、工作线程 CPU 等指标。
+ * 记录进程 CPU 负载、系统 CPU 负载、进程累计 CPU 时间、可用核心数等指标。
  * <p>
  * 对应 Phase 0-E: P0-013
  */
 public final class CpuMetrics {
 
     private static final MetricRegistry REGISTRY = MetricRegistry.get();
-    private static final OperatingSystemMXBean OS_BEAN = ManagementFactory.getOperatingSystemMXBean();
+    private static final OperatingSystemMXBean OS_BEAN =
+        ManagementFactory.getOperatingSystemMXBean();
     // 标准 JDK 实现都实现了 com.sun.management.OperatingSystemMXBean，直接强转避免反射
     private static final com.sun.management.OperatingSystemMXBean SUN_OS_BEAN =
-        OS_BEAN instanceof com.sun.management.OperatingSystemMXBean ? (com.sun.management.OperatingSystemMXBean) OS_BEAN : null;
+        OS_BEAN instanceof com.sun.management.OperatingSystemMXBean
+            ? (com.sun.management.OperatingSystemMXBean) OS_BEAN
+            : null;
 
     private final MetricRegistry.Gauge<Double> processCpuLoad;
     private final MetricRegistry.Gauge<Double> systemCpuLoad;
@@ -27,7 +30,9 @@ public final class CpuMetrics {
         this.processCpuLoad = REGISTRY.gaugeDouble("cpu.process.load", () -> getProcessCpuLoad());
         this.systemCpuLoad = REGISTRY.gaugeDouble("cpu.system.load", this::getSystemCpuLoad);
         this.processCpuTime = REGISTRY.gaugeLong("cpu.process.time", this::getProcessCpuTime);
-        this.availableProcessors = REGISTRY.gaugeInt("cpu.available", Runtime.getRuntime()::availableProcessors);
+        this.availableProcessors = REGISTRY.gaugeInt(
+            "cpu.available", Runtime.getRuntime()::availableProcessors
+        );
     }
 
     private static final class Holder {
@@ -36,13 +41,6 @@ public final class CpuMetrics {
 
     public static CpuMetrics get() {
         return Holder.INSTANCE;
-    }
-
-    /**
-     * 手动刷新指标（Gauge 是懒加载的，通常不需要调用）
-     */
-    public void refresh() {
-        // Gauge 会在获取时自动计算
     }
 
     // ==================== 便捷查询 ====================
@@ -60,6 +58,7 @@ public final class CpuMetrics {
     /**
      * 获取系统 CPU 使用率（0.0 ~ 1.0），不可用时回退到 1 分钟负载平均值
      */
+    @SuppressWarnings("deprecation") // getSystemLoadAverage 自 JDK 14 起弃用，仅作回退指标
     public double getSystemCpuLoad() {
         if (SUN_OS_BEAN != null) {
             double load = SUN_OS_BEAN.getSystemCpuLoad();
@@ -94,6 +93,7 @@ public final class CpuMetrics {
     /**
      * 获取系统负载平均值（1分钟）
      */
+    @SuppressWarnings("deprecation") // getSystemLoadAverage 自 JDK 14 起弃用，保留兼容回退
     public double getSystemLoadAverage() {
         return OS_BEAN.getSystemLoadAverage();
     }

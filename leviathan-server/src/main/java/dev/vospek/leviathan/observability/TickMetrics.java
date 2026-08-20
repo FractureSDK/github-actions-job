@@ -1,7 +1,10 @@
 package dev.vospek.leviathan.observability;
 
 import ca.spottedleaf.common.time.TickData;
+import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
 import net.minecraft.server.MinecraftServer;
+import net.minecraft.server.level.ServerLevel;
 
 /**
  * Tick 性能指标收集器
@@ -22,10 +25,10 @@ public final class TickMetrics {
     private final MetricRegistry.Gauge<Double> currentMSPT;
 
     // Per-world 指标（懒加载）
-    private final java.util.Map<String, WorldTickMetrics> worldMetrics = new java.util.concurrent.ConcurrentHashMap<>();
+    private final Map<String, WorldTickMetrics> worldMetrics = new ConcurrentHashMap<>();
 
     // 服务器级同步窗口缓存: suffix -> [avg, min, max] ms
-    private final java.util.Map<String, double[]> serverSyncCache = new java.util.concurrent.ConcurrentHashMap<>();
+    private final Map<String, double[]> serverSyncCache = new ConcurrentHashMap<>();
 
     // 阈值配置
     private static final double OVERRUN_THRESHOLD_MS = 50.0; // 50ms 视为 overrun
@@ -86,7 +89,7 @@ public final class TickMetrics {
         syncTickData(server, server.tickTimes1m, "1m");
 
         // 同步世界级指标
-        for (net.minecraft.server.level.ServerLevel level : server.getAllLevels()) {
+        for (ServerLevel level : server.getAllLevels()) {
             WorldTickMetrics wm = getWorldMetrics(level.getWorld().getName());
             wm.syncFromTickData(level.tickTimes5s, "5s");
             wm.syncFromTickData(level.tickTimes10s, "10s");
@@ -95,7 +98,9 @@ public final class TickMetrics {
     }
 
     private void syncTickData(MinecraftServer server, TickData tickData, String suffix) {
-        TickData.TickReportData report = tickData.generateTickReport(null, System.nanoTime(), server.tickRateManager().nanosecondsPerTick());
+        TickData.TickReportData report = tickData.generateTickReport(
+            null, System.nanoTime(), server.tickRateManager().nanosecondsPerTick()
+        );
         if (report != null) {
             // 每次写入新数组并通过 put 发布，保证读取线程看到一致快照
             var segment = report.timePerTickData().segmentAll();
@@ -106,10 +111,24 @@ public final class TickMetrics {
             };
             serverSyncCache.put(suffix, values);
 
-            REGISTRY.gaugeDouble("tick.server." + suffix + ".avg", () -> { double[] v = serverSyncCache.get(suffix); return v != null ? v[0] : 0.0; });
-            REGISTRY.gaugeDouble("tick.server." + suffix + ".min", () -> { double[] v = serverSyncCache.get(suffix); return v != null ? v[1] : 0.0; });
-            REGISTRY.gaugeDouble("tick.server." + suffix + ".max", () -> { double[] v = serverSyncCache.get(suffix); return v != null ? v[2] : 0.0; });
+            REGISTRY.gaugeDouble(
+                "tick.server." + suffix + ".avg", () -> syncWindowValue(serverSyncCache, suffix, 0)
+            );
+            REGISTRY.gaugeDouble(
+                "tick.server." + suffix + ".min", () -> syncWindowValue(serverSyncCache, suffix, 1)
+            );
+            REGISTRY.gaugeDouble(
+                "tick.server." + suffix + ".max", () -> syncWindowValue(serverSyncCache, suffix, 2)
+            );
         }
+    }
+
+    /**
+     * 读取同步窗口缓存的指定下标值，无数据时返回 0
+     */
+    private static double syncWindowValue(Map<String, double[]> cache, String suffix, int index) {
+        double[] values = cache.get(suffix);
+        return values != null ? values[index] : 0.0;
     }
 
     /**
@@ -147,13 +166,17 @@ public final class TickMetrics {
 
     private double calculateTPS() {
         long count = serverTickTimer.getCount();
-        if (count == 0) return getSyncedTPS();
+        if (count == 0) {
+            return getSyncedTPS();
+        }
         double avgMs = serverTickTimer.getMean();
         return avgMs > 0 ? Math.min(1000.0 / avgMs, 20.0) : 20.0;
     }
 
     private double calculateMSPT() {
-        if (serverTickTimer.getCount() == 0) return getSyncedMSPT();
+        if (serverTickTimer.getCount() == 0) {
+            return getSyncedMSPT();
+        }
         return serverTickTimer.getMean();
     }
 
@@ -179,25 +202,37 @@ public final class TickMetrics {
         return serverTickTimer;
     }
 
-    // 百分位数查询
-    public double getP50() { return serverTickTimer.p50(); }
-    public double getP95() { return serverTimer().p95(); }
-    public double getP99() { return serverTimer().p99(); }
-    public double getMax() { return serverTimer().getMax(); }
+    // 百分位数查询（单位：微秒）
+    public double getP50() {
+        return serverTickTimer.p50();
+    }
 
-    private MetricRegistry.Timer serverTimer() {
-        return serverTickTimer;
+    public double getP95() {
+        return serverTickTimer.p95();
+    }
+
+    public double getP99() {
+        return serverTickTimer.p99();
+    }
+
+    public double getMax() {
+        return serverTickTimer.getMax();
     }
 
     // ==================== 世界级指标内部类 ====================
 
+    /**
+     * 世界级 Tick 指标
+     * <p>
+     * 每个世界独立维护耗时统计与同步窗口缓存。
+     */
     public static final class WorldTickMetrics {
         private final String worldName;
         private final MetricRegistry.Timer tickTimer;
         private final MetricRegistry.Counter overrunCounter;
         private final MetricRegistry.Counter spikeCounter;
         // 同步窗口缓存: suffix -> [avg, min, max] ms
-        private final java.util.Map<String, double[]> syncCache = new java.util.concurrent.ConcurrentHashMap<>();
+        private final Map<String, double[]> syncCache = new ConcurrentHashMap<>();
 
         private WorldTickMetrics(String worldName) {
             this.worldName = worldName;
@@ -209,8 +244,12 @@ public final class TickMetrics {
         public void recordTick(long nanos) {
             tickTimer.recordNanos(nanos);
             double ms = nanos / 1_000_000.0;
-            if (ms > OVERRUN_THRESHOLD_MS) overrunCounter.inc();
-            if (ms > SPIKE_THRESHOLD_MS) spikeCounter.inc();
+            if (ms > OVERRUN_THRESHOLD_MS) {
+                overrunCounter.inc();
+            }
+            if (ms > SPIKE_THRESHOLD_MS) {
+                spikeCounter.inc();
+            }
         }
 
         public void syncFromTickData(MinecraftServer.TickTimes tickTimes, String suffix) {
@@ -236,14 +275,25 @@ public final class TickMetrics {
                 syncCache.put(suffix, values);
             }
 
-            REGISTRY.gaugeDouble("tick.world." + worldName + "." + suffix + ".avg", () -> { double[] v = syncCache.get(suffix); return v != null ? v[0] : 0.0; });
-            REGISTRY.gaugeDouble("tick.world." + worldName + "." + suffix + ".min", () -> { double[] v = syncCache.get(suffix); return v != null ? v[1] : 0.0; });
-            REGISTRY.gaugeDouble("tick.world." + worldName + "." + suffix + ".max", () -> { double[] v = syncCache.get(suffix); return v != null ? v[2] : 0.0; });
+            REGISTRY.gaugeDouble(
+                "tick.world." + worldName + "." + suffix + ".avg",
+                () -> syncWindowValue(syncCache, suffix, 0)
+            );
+            REGISTRY.gaugeDouble(
+                "tick.world." + worldName + "." + suffix + ".min",
+                () -> syncWindowValue(syncCache, suffix, 1)
+            );
+            REGISTRY.gaugeDouble(
+                "tick.world." + worldName + "." + suffix + ".max",
+                () -> syncWindowValue(syncCache, suffix, 2)
+            );
         }
 
         public double getTPS() {
             long count = tickTimer.getCount();
-            if (count == 0) return 20.0;
+            if (count == 0) {
+                return 20.0;
+            }
             double avgMs = tickTimer.getMean();
             return avgMs > 0 ? Math.min(1000.0 / avgMs, 20.0) : 20.0;
         }

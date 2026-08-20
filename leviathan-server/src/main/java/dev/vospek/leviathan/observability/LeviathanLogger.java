@@ -1,5 +1,8 @@
 package dev.vospek.leviathan.observability;
 
+import java.io.File;
+import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
 import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -9,10 +12,6 @@ import org.apache.logging.log4j.core.appender.rolling.DefaultRolloverStrategy;
 import org.apache.logging.log4j.core.appender.rolling.SizeBasedTriggeringPolicy;
 import org.apache.logging.log4j.core.config.Configuration;
 import org.apache.logging.log4j.core.layout.PatternLayout;
-
-import java.io.File;
-import java.util.Map;
-import java.util.concurrent.ConcurrentHashMap;
 
 /**
  * Leviathan 统一日志系统
@@ -66,7 +65,8 @@ public final class LeviathanLogger {
     /**
      * 获取子模块 Logger
      * <p>
-     * 示例：{@code LeviathanLogger.getLogger("Storage", "Region")} -> {@code Logger[Leviathan/Storage/Region]}
+     * 示例：{@code LeviathanLogger.getLogger("Storage", "Region")}
+     * -> {@code Logger[Leviathan/Storage/Region]}
      */
     public static Logger getLogger(String module, String subModule) {
         String name = NAMESPACE_PREFIX + "/" + module + "/" + subModule;
@@ -148,7 +148,10 @@ public final class LeviathanLogger {
                 .build();
 
             // 为每个性能分类创建 RollingFileAppender
-            String[] categories = {"Diagnostics", "Network", "Storage", "Entity", "Region", "Benchmark", "Runtime", "Performance"};
+            String[] categories = {
+                "Diagnostics", "Network", "Storage", "Entity", "Region",
+                "Benchmark", "Runtime", "Performance"
+            };
 
             for (String category : categories) {
                 String loggerName = NAMESPACE_PREFIX + "/Performance/" + category;
@@ -181,7 +184,9 @@ public final class LeviathanLogger {
             ctx.updateLoggers();
         } catch (Exception e) {
             // 如果 Log4j2 核心 API 不可用，回退到基础配置
-            System.err.println("[LeviathanLogger] Failed to configure file appenders: " + e.getMessage());
+            System.err.println(
+                "[LeviathanLogger] Failed to configure file appenders: " + e.getMessage()
+            );
         }
     }
 

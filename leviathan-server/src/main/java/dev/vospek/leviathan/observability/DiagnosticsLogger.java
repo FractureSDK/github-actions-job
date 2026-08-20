@@ -1,5 +1,6 @@
 package dev.vospek.leviathan.observability;
 
+import java.io.BufferedWriter;
 import java.io.File;
 import java.io.IOException;
 import java.nio.file.Files;
@@ -53,7 +54,9 @@ public final class DiagnosticsLogger {
             try {
                 return new FileAppender(category);
             } catch (IOException e) {
-                throw new RuntimeException("Failed to create diagnostics appender for " + category, e);
+                throw new RuntimeException(
+                    "Failed to create diagnostics appender for " + category, e
+                );
             }
         });
     }
@@ -128,7 +131,9 @@ public final class DiagnosticsLogger {
      * 时间参数均为毫秒，来自同步的 tickTimes 窗口（avg/min/max）。
      * overruns/spikes 来自计数器，在 tick 钩子接入前为 0。
      */
-    public static void logTickMetrics(double tps, double avgMs, double minMs, double maxMs, long overruns, long spikes) {
+    public static void logTickMetrics(
+        double tps, double avgMs, double minMs, double maxMs, long overruns, long spikes
+    ) {
         logStructured("performance", Map.of(
             "type", "tick_metrics",
             "tps", String.format("%.2f", tps),
@@ -143,12 +148,17 @@ public final class DiagnosticsLogger {
     /**
      * 记录内存指标
      */
-    public static void logMemoryMetrics(long heapUsed, long heapMax, long directUsed, double allocationRate) {
+    public static void logMemoryMetrics(
+        long heapUsed, long heapMax, long directUsed, double allocationRate
+    ) {
+        String heapUsagePercent = heapMax > 0
+            ? String.format("%.1f", heapUsed * 100.0 / heapMax)
+            : "0.0";
         logStructured("performance", Map.of(
             "type", "memory_metrics",
             "heap_used_mb", heapUsed / 1024 / 1024,
             "heap_max_mb", heapMax / 1024 / 1024,
-            "heap_usage_pct", String.format("%.1f", heapUsed * 100.0 / heapMax),
+            "heap_usage_pct", heapUsagePercent,
             "direct_mb", directUsed / 1024 / 1024,
             "alloc_rate_mb_s", String.format("%.2f", allocationRate)
         ));
@@ -180,14 +190,16 @@ public final class DiagnosticsLogger {
      */
     private static final class FileAppender {
         private final Path filePath;
-        private final java.io.BufferedWriter writer;
+        private final BufferedWriter writer;
 
         private FileAppender(String category) throws IOException {
             this.filePath = Path.of(LOG_DIR, category + ".log");
             // 确保父目录存在
             Files.createDirectories(filePath.getParent());
             // 追加模式打开
-            this.writer = Files.newBufferedWriter(filePath, StandardOpenOption.CREATE, StandardOpenOption.APPEND);
+            this.writer = Files.newBufferedWriter(
+                filePath, StandardOpenOption.CREATE, StandardOpenOption.APPEND
+            );
         }
 
         void write(String line) {

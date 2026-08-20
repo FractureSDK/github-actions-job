@@ -1,8 +1,5 @@
 package dev.vospek.leviathan.observability;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
-
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicLong;
@@ -10,6 +7,8 @@ import java.util.function.DoubleSupplier;
 import java.util.function.IntSupplier;
 import java.util.function.LongSupplier;
 import java.util.function.Supplier;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 
 /**
  * 统一指标注册中心
@@ -69,7 +68,7 @@ public final class MetricRegistry {
     public <T extends Number> Gauge<T> gauge(String name, Supplier<T> supplier) {
         String key = buildKey(name);
         @SuppressWarnings("unchecked")
-        Gauge<T> gauge = (Gauge<T>) gauges.computeIfAbsent(key, k -> new Gauge<>(supplier));
+        Gauge<T> gauge = (Gauge<T>) gauges.computeIfAbsent(key, k -> new Gauge<>(key, supplier));
         return gauge;
     }
 
@@ -100,7 +99,7 @@ public final class MetricRegistry {
     public <T extends Number> Gauge<T> gauge(String name, Supplier<T> supplier, String... tags) {
         String key = buildKey(name, tags);
         @SuppressWarnings("unchecked")
-        Gauge<T> gauge = (Gauge<T>) gauges.computeIfAbsent(key, k -> new Gauge<>(supplier));
+        Gauge<T> gauge = (Gauge<T>) gauges.computeIfAbsent(key, k -> new Gauge<>(key, supplier));
         return gauge;
     }
 
@@ -237,13 +236,13 @@ public final class MetricRegistry {
         private final String name;
         private final Supplier<T> supplier;
 
-        private Gauge(Supplier<T> supplier) {
-            this.name = "";
+        private Gauge(String name, Supplier<T> supplier) {
+            this.name = name;
             this.supplier = supplier;
         }
 
         public T getValue() {
-            return supplier != null ? supplier.get() : null;
+            return supplier.get();
         }
 
         public double getAsDouble() {
@@ -279,7 +278,8 @@ public final class MetricRegistry {
         private static final int BUCKET_COUNT = 64;
         private static final double MIN_VALUE = 1.0; // 1 microsecond
         private static final double MAX_VALUE = 10_000_000.0; // 10 seconds
-        private static final double MULTIPLIER = Math.pow(MAX_VALUE / MIN_VALUE, 1.0 / (BUCKET_COUNT - 1));
+        private static final double MULTIPLIER =
+            Math.pow(MAX_VALUE / MIN_VALUE, 1.0 / (BUCKET_COUNT - 1));
         // 预计算桶边界，避免热路径中的 log/pow 计算
         private static final double[] BUCKET_BOUNDARIES = new double[BUCKET_COUNT];
 
@@ -306,7 +306,9 @@ public final class MetricRegistry {
          * 因此所有读写方法必须同步。每 tick 仅记录一次，锁竞争可忽略。
          */
         public synchronized void record(double valueUs) {
-            if (valueUs < 0) return;
+            if (valueUs < 0) {
+                return;
+            }
 
             count++;
             sum += valueUs;
@@ -337,7 +339,8 @@ public final class MetricRegistry {
             if (value <= MIN_VALUE) return 0;
             if (value >= MAX_VALUE) return BUCKET_COUNT - 1;
             // 二分查找预计算的边界，比 log/pow 更快
-            int low = 0, high = BUCKET_COUNT - 1;
+            int low = 0;
+            int high = BUCKET_COUNT - 1;
             while (low < high) {
                 int mid = (low + high) >>> 1;
                 if (BUCKET_BOUNDARIES[mid] < value) {
@@ -398,8 +401,11 @@ public final class MetricRegistry {
 
         @Override
         public String toString() {
-            return String.format("Histogram{name='%s', count=%d, mean=%.2fµs, p50=%.2f, p95=%.2f, p99=%.2f, max=%.2f}",
-                name, count, getMean(), p50(), p95(), p99(), getMax());
+            return String.format(
+                "Histogram{name='%s', count=%d, mean=%.2fµs, p50=%.2f, p95=%.2f, "
+                    + "p99=%.2f, max=%.2f}",
+                name, count, getMean(), p50(), p95(), p99(), getMax()
+            );
         }
     }
 
@@ -428,9 +434,9 @@ public final class MetricRegistry {
         }
 
         /**
-         * 执行代码块并记录耗时
+         * 执行代码块并记录耗时（返回结果）
          */
-        public <T> T time(java.util.function.Supplier<T> supplier) {
+        public <T> T time(Supplier<T> supplier) {
             long start = System.nanoTime();
             try {
                 return supplier.get();
@@ -440,7 +446,7 @@ public final class MetricRegistry {
         }
 
         /**
-         * 执行代码块并记录耗时
+         * 执行代码块并记录耗时（无返回值）
          */
         public void time(Runnable runnable) {
             long start = System.nanoTime();
@@ -515,7 +521,15 @@ public final class MetricRegistry {
 
         @Override
         public String toString() {
-            return String.format("Rate{name='%s', count=%d, rate=%.2f/s}", name, count.get(), getRate());
+            // 计算瞬时速率但不更新滑动窗口状态，避免 toString 产生副作用
+            long currentCount = count.get();
+            long elapsedNanos = System.nanoTime() - lastTickTime;
+            double rate = elapsedNanos > 0
+                ? (currentCount - lastTickCount) * 1_000_000_000.0 / elapsedNanos
+                : 0.0;
+            return String.format(
+                "Rate{name='%s', count=%d, rate=%.2f/s}", name, currentCount, rate
+            );
         }
     }
 
@@ -531,8 +545,10 @@ public final class MetricRegistry {
     ) {
         @Override
         public String toString() {
-            return String.format("MetricSnapshot{counters=%d, gauges=%d, histograms=%d, timers=%d, rates=%d}",
-                counters.size(), gauges.size(), histograms.size(), timers.size(), rates.size());
+            return String.format(
+                "MetricSnapshot{counters=%d, gauges=%d, histograms=%d, timers=%d, rates=%d}",
+                counters.size(), gauges.size(), histograms.size(), timers.size(), rates.size()
+            );
         }
     }
 }

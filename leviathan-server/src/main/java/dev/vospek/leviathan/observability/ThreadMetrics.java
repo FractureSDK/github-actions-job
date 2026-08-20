@@ -21,13 +21,15 @@ public final class ThreadMetrics {
     private static final ThreadMXBean THREAD_BEAN = ManagementFactory.getThreadMXBean();
     // 标准 JDK 实现都实现了 com.sun.management.ThreadMXBean，直接强转避免反射
     private static final com.sun.management.ThreadMXBean SUN_THREAD_BEAN =
-        THREAD_BEAN instanceof com.sun.management.ThreadMXBean ? (com.sun.management.ThreadMXBean) THREAD_BEAN : null;
+        THREAD_BEAN instanceof com.sun.management.ThreadMXBean
+            ? (com.sun.management.ThreadMXBean) THREAD_BEAN
+            : null;
 
     private final MetricRegistry.Gauge<Integer> threadCount;
     private final MetricRegistry.Gauge<Integer> peakThreadCount;
     private final MetricRegistry.Gauge<Integer> daemonThreadCount;
     private final MetricRegistry.Gauge<Long> totalThreadCpuTime;
-    private final MetricRegistry.Gauge<Integer> threadStateCount; // Track runnable count as example
+    private final MetricRegistry.Gauge<Integer> threadStateCount; // Runnable 线程数
 
     // 线程名 -> CPU 时间（用于热点分析）
     private final Map<String, Long> threadCpuTimes = new ConcurrentHashMap<>();
@@ -35,9 +37,15 @@ public final class ThreadMetrics {
     private ThreadMetrics() {
         this.threadCount = REGISTRY.gaugeInt("thread.count", THREAD_BEAN::getThreadCount);
         this.peakThreadCount = REGISTRY.gaugeInt("thread.peak", THREAD_BEAN::getPeakThreadCount);
-        this.daemonThreadCount = REGISTRY.gaugeInt("thread.daemon", THREAD_BEAN::getDaemonThreadCount);
-        this.totalThreadCpuTime = REGISTRY.gaugeLong("thread.total_cpu_ns", this::getTotalThreadCpuTimeNs);
-        this.threadStateCount = REGISTRY.gaugeInt("thread.runnable_count", this::getRunnableThreadCount);
+        this.daemonThreadCount = REGISTRY.gaugeInt(
+            "thread.daemon", THREAD_BEAN::getDaemonThreadCount
+        );
+        this.totalThreadCpuTime = REGISTRY.gaugeLong(
+            "thread.total_cpu_ns", this::getTotalThreadCpuTimeNs
+        );
+        this.threadStateCount = REGISTRY.gaugeInt(
+            "thread.runnable_count", this::calculateRunnableThreadCount
+        );
     }
 
     private static final class Holder {
@@ -71,9 +79,9 @@ public final class ThreadMetrics {
     }
 
     /**
-     * 获取可运行线程数
+     * 计算当前 Runnable 状态的线程数
      */
-    private int getRunnableThreadCount() {
+    private int calculateRunnableThreadCount() {
         ThreadInfo[] infos = THREAD_BEAN.dumpAllThreads(false, false);
         int count = 0;
         for (ThreadInfo info : infos) {
@@ -105,7 +113,7 @@ public final class ThreadMetrics {
     public List<ThreadCpuInfo> getTopCpuThreads(int limit) {
         List<ThreadCpuInfo> result = new ArrayList<>();
 
-        // 先更新缓存
+        // 采集当前线程 CPU 时间快照
         long[] ids = THREAD_BEAN.getAllThreadIds();
         long[] cpuTimes = new long[ids.length];
         for (int i = 0; i < ids.length; i++) {
@@ -133,9 +141,16 @@ public final class ThreadMetrics {
     public int getThreadCount() { return threadCount.getAsInt(); }
     public int getPeakThreadCount() { return peakThreadCount.getAsInt(); }
     public int getDaemonThreadCount() { return daemonThreadCount.getAsInt(); }
-    public int getRunnableThreadCountGauge() { return threadStateCount.getAsInt(); }
-    public Map<String, Long> getThreadStates() { return getThreadStateDistribution(); }
+    public int getRunnableThreadCount() { return threadStateCount.getAsInt(); }
 
+    /**
+     * 单个线程的 CPU 时间信息（用于热点分析）
+     *
+     * @param name        线程名
+     * @param id          线程 ID
+     * @param state       线程状态
+     * @param cpuTimeNanos 累计 CPU 时间（纳秒）
+     */
     public record ThreadCpuInfo(
         String name,
         long id,

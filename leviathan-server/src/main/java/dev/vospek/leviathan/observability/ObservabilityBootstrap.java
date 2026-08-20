@@ -2,11 +2,10 @@ package dev.vospek.leviathan.observability;
 
 import dev.vospek.leviathan.config.LeviathanConfig;
 import dev.vospek.leviathan.config.modules.misc.CoreConfig;
-import net.minecraft.server.MinecraftServer;
-
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
+import net.minecraft.server.MinecraftServer;
 
 /**
  * 可观测性系统启动类
@@ -54,7 +53,9 @@ public final class ObservabilityBootstrap {
         startPeriodicSync();
 
         // 注册 JVM 关闭钩子作为兜底
-        Runtime.getRuntime().addShutdownHook(new Thread(ObservabilityBootstrap::shutdown, "Leviathan-Observability-Shutdown"));
+        Runtime.getRuntime().addShutdownHook(
+            new Thread(ObservabilityBootstrap::shutdown, "Leviathan-Observability-Shutdown")
+        );
 
         initialized = true;
         LeviathanConfig.LOGGER.info("Leviathan Observability system initialized");
@@ -94,7 +95,9 @@ public final class ObservabilityBootstrap {
      */
     private static void syncMetrics() {
         MinecraftServer server = MinecraftServer.getServer();
-        if (server == null) return;
+        if (server == null) {
+            return;
+        }
 
         // 同步 Tick 指标
         TickMetrics tm = TickMetrics.get();
@@ -125,7 +128,9 @@ public final class ObservabilityBootstrap {
      */
     private static void logDiagnostics() {
         MinecraftServer server = MinecraftServer.getServer();
-        if (server == null) return;
+        if (server == null) {
+            return;
+        }
 
         // 线程信息
         ThreadMetrics thm = ThreadMetrics.get();
@@ -162,6 +167,9 @@ public final class ObservabilityBootstrap {
         initialized = false;
     }
 
+    /**
+     * 检查可观测性系统是否已初始化
+     */
     public static boolean isInitialized() {
         return initialized;
     }
