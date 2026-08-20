@@ -48,6 +48,9 @@ public final class ObservabilityBootstrap {
         CpuMetrics.get();
         MemoryMetrics.get();
         ThreadMetrics.get();
+        GcMetrics.get();
+        JitMetrics.get();
+        StorageMetrics.get();
 
         // 启动定期同步任务
         startPeriodicSync();
@@ -59,6 +62,7 @@ public final class ObservabilityBootstrap {
 
         initialized = true;
         LeviathanConfig.LOGGER.info("Leviathan Observability system initialized");
+        logRuntimeDiagnostics();
     }
 
     /**
@@ -147,6 +151,31 @@ public final class ObservabilityBootstrap {
         MemoryMetrics mm = MemoryMetrics.get();
         DiagnosticsLogger.logDiagnostics("GC Count: %d, GC Time: %dms, Allocation Rate: %.2fMB/s",
             mm.getGcCount(), mm.getGcTime(), mm.getAllocationRateMbPerSec());
+
+        // GC 类型与参数（W1-01）
+        GcMetrics gm = GcMetrics.get();
+        DiagnosticsLogger.logDiagnostics("GC Type: %s, GC Params: %s",
+            gm.getGcType(), String.join(" ", gm.getGcParameters()));
+
+        // JIT 状态（W1-04）
+        JitMetrics jm = JitMetrics.get();
+        DiagnosticsLogger.logDiagnostics("JIT Compiler: %s, Total Compile Time: %dms",
+            jm.getCompilerName(), jm.getTotalCompilationTimeMs());
+
+        // 存储配置（W2-01）
+        StorageMetrics sm = StorageMetrics.get();
+        DiagnosticsLogger.logDiagnostics("Storage: %s", sm.describe());
+    }
+
+    /**
+     * 启动时输出一次运行时诊断摘要（W1-04 Runtime Diagnostics）
+     */
+    private static void logRuntimeDiagnostics() {
+        GcMetrics gm = GcMetrics.get();
+        JitMetrics jm = JitMetrics.get();
+        StorageMetrics sm = StorageMetrics.get();
+        LeviathanConfig.LOGGER.info("Leviathan runtime diagnostics: GC={}, JIT={}, Storage={}",
+            gm.getGcType(), jm.getCompilerName(), sm.describe());
     }
 
     /**

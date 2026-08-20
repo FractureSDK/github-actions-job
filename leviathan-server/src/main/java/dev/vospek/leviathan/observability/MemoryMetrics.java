@@ -1,5 +1,6 @@
 package dev.vospek.leviathan.observability;
 
+import java.lang.management.BufferPoolMXBean;
 import java.lang.management.GarbageCollectorMXBean;
 import java.lang.management.ManagementFactory;
 import java.lang.management.MemoryMXBean;
@@ -29,10 +30,22 @@ public final class MemoryMetrics {
             ? (com.sun.management.OperatingSystemMXBean) OS_BEAN
             : null;
 
-    // Unsafe 反射只做一次（Java 25 之后 JDK 提供 getDirectMemory 的受支持替代前仍需反射）
+    // Unsafe 反射只做一次（BufferPoolMXBean 不可用时兜底）
     private static final Method UNSAFE_GET_DIRECT_MEMORY;
     private static final Method UNSAFE_MAX_DIRECT_MEMORY;
     private static final Object UNSAFE_INSTANCE;
+
+    // JDK 11+ 提供 BufferPoolMXBean("direct")，优先使用；比 Unsafe 更准确且无需反射
+    private static final BufferPoolMXBean DIRECT_POOL = findDirectBufferPool();
+
+    private static BufferPoolMXBean findDirectBufferPool() {
+        for (BufferPoolMXBean pool : ManagementFactory.getPlatformMXBeans(BufferPoolMXBean.class)) {
+            if ("direct".equalsIgnoreCase(pool.getName())) {
+                return pool;
+            }
+        }
+        return null;
+    }
 
     static {
         Method getDirectMemory = null;
@@ -184,7 +197,12 @@ public final class MemoryMetrics {
     }
 
     private long estimateDirectMemoryUsed() {
-        if (UNSAFE_GET_DIRECT_MEMORY == null || UNSAFE_INSTANCE == null) return -1;
+        if (DIRECT_POOL != null) {
+            return DIRECT_POOL.getMemoryUsed();
+        }
+        if (UNSAFE_GET_DIRECT_MEMORY == null || UNSAFE_INSTANCE == null) {
+            return -1;
+        }
         try {
             return (long) UNSAFE_GET_DIRECT_MEMORY.invoke(UNSAFE_INSTANCE);
         } catch (Exception e) {
@@ -193,7 +211,12 @@ public final class MemoryMetrics {
     }
 
     private long estimateDirectMemoryMax() {
-        if (UNSAFE_MAX_DIRECT_MEMORY == null || UNSAFE_INSTANCE == null) return -1;
+        if (DIRECT_POOL != null) {
+            return DIRECT_POOL.getTotalCapacity();
+        }
+        if (UNSAFE_MAX_DIRECT_MEMORY == null || UNSAFE_INSTANCE == null) {
+            return -1;
+        }
         try {
             return (long) UNSAFE_MAX_DIRECT_MEMORY.invoke(UNSAFE_INSTANCE);
         } catch (Exception e) {
