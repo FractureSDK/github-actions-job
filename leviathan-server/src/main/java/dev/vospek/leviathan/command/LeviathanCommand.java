@@ -8,6 +8,7 @@ import net.minecraft.util.Util;
 import dev.vospek.leviathan.command.subcommands.MSPTCommand;
 import dev.vospek.leviathan.command.subcommands.MetricsCommand;
 import dev.vospek.leviathan.command.subcommands.ReloadCommand;
+import dev.vospek.leviathan.command.subcommands.RulesCommand;
 import dev.vospek.leviathan.command.subcommands.RuntimeCommand;
 import dev.vospek.leviathan.command.subcommands.StatusCommand;
 import dev.vospek.leviathan.command.subcommands.StatsCommand;
@@ -46,6 +47,7 @@ public final class LeviathanCommand extends Command {
     private static final LeviathanSubcommand STATUS_SUBCOMMAND = new StatusCommand();
     private static final LeviathanSubcommand STATS_SUBCOMMAND = new StatsCommand();
     private static final LeviathanSubcommand METRICS_SUBCOMMAND = new MetricsCommand();
+    private static final LeviathanSubcommand RULES_SUBCOMMAND = new RulesCommand();
     private static final Map<String, LeviathanSubcommand> SUBCOMMANDS = Util.make(() -> {
         final Map<Set<String>, LeviathanSubcommand> commands = new HashMap<>();
 
@@ -56,6 +58,7 @@ public final class LeviathanCommand extends Command {
         commands.put(Set.of(StatusCommand.LITERAL_ARGUMENT), STATUS_SUBCOMMAND);
         commands.put(Set.of(StatsCommand.LITERAL_ARGUMENT), STATS_SUBCOMMAND);
         commands.put(Set.of(MetricsCommand.LITERAL_ARGUMENT), METRICS_SUBCOMMAND);
+        commands.put(Set.of(RulesCommand.LITERAL_ARGUMENT), RULES_SUBCOMMAND);
 
         return commands.entrySet().stream()
             .flatMap(entry -> entry.getKey().stream().map(s -> Map.entry(s, entry.getValue())))

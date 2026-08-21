@@ -51,6 +51,9 @@ public final class ObservabilityBootstrap {
         GcMetrics.get();
         JitMetrics.get();
         StorageMetrics.get();
+        NetworkMetrics.get();
+        EntityMetrics.get();
+        AsyncMetrics.get();
 
         // 启动定期同步任务
         startPeriodicSync();
@@ -63,6 +66,7 @@ public final class ObservabilityBootstrap {
         initialized = true;
         LeviathanConfig.LOGGER.info("Leviathan Observability system initialized");
         logRuntimeDiagnostics();
+        StartupReporter.report();
     }
 
     /**
@@ -165,6 +169,18 @@ public final class ObservabilityBootstrap {
         // 存储配置（W2-01）
         StorageMetrics sm = StorageMetrics.get();
         DiagnosticsLogger.logDiagnostics("Storage: %s", sm.describe());
+
+        // 网络层（W3-01/W3-02/W4-01）
+        NetworkMetrics nm = NetworkMetrics.get();
+        DiagnosticsLogger.logDiagnostics("Network: %s", nm.describe());
+
+        // 实体层（W5-01/W5-02/W5-03）
+        EntityMetrics em = EntityMetrics.get();
+        DiagnosticsLogger.logDiagnostics("Entity: %s", em.describe());
+
+        // 异步层（W6-01 ~ W6-06）
+        AsyncMetrics am = AsyncMetrics.get();
+        DiagnosticsLogger.logDiagnostics("Async: %s", am.describe());
     }
 
     /**
