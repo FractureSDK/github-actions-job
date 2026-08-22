@@ -1,9 +1,9 @@
-name: Build & Publish (GitHub Actions -> GitLab)
+name: Build & Release (GitHub Actions)
 
-# GitLab 存源码(唯一事实源),GitHub 负责构建并把产物发布回 GitLab:
-#   1. 直接从 GitLab 克隆源码(GITLAB_TOKEN)
+# 架构: GitLab 存源码(唯一事实源),GitHub 负责构建与发布
+#   1. 直接从 GitLab 克隆源码(GITLAB_TOKEN, 只读 scope read_repository 即可)
 #   2. applyAllPatches + createPaperclipJar(JDK 25)
-#   3. 上传 GitLab Generic Package 并创建/刷新 Release(tag: ver-<MC>-<BUILD>)
+#   3. 发布到本仓库的 GitHub Releases(tag: ver-<MC>-<BUILD>, 公开可下载)
 
 on:
   push:
@@ -19,8 +19,6 @@ permissions:
 
 env:
   GRADLE_OPTS: "-Dorg.gradle.jvmargs=-Xmx4g -XX:MaxMetaspaceSize=1g"
-  # URL-encoded project path for GitLab API
-  GITLAB_PROJECT: "vospek%2Fminecraft-dev%2Fleviathan"
 
 jobs:
   build-publish:
@@ -77,35 +75,17 @@ jobs:
             release_notes.md
           if-no-files-found: error
 
-      - name: Publish jar to GitLab Generic Package
-        run: |
-          JAR="leviathan-${MC_VERSION}-${BUILD_NUMBER}.jar"
-          curl --fail --silent --show-error \
-            --header "PRIVATE-TOKEN: ${{ secrets.GITLAB_TOKEN }}" \
-            --upload-file "./$JAR" \
-            "https://gitlab.com/api/v4/projects/${GITLAB_PROJECT}/packages/generic/leviathan/${MC_VERSION}/$JAR"
-
-      - name: Create or refresh GitLab Release
+      - name: Create GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
         run: |
           TAG="ver-${MC_VERSION}-${BUILD_NUMBER}"
-          API="https://gitlab.com/api/v4/projects/${GITLAB_PROJECT}"
-          ASSET_URL="${API}/packages/generic/leviathan/${MC_VERSION}/leviathan-${MC_VERSION}-${BUILD_NUMBER}.jar"
-          # 同 tag 旧 Release 先删,保持与 prepareRelease.sh 一致的幂等语义
-          curl --silent --request DELETE \
-            --header "PRIVATE-TOKEN: ${{ secrets.GITLAB_TOKEN }}" \
-            "$API/releases/$TAG" > /dev/null || true
-          jq -n \
-            --arg tag "$TAG" \
-            --arg ref "$GIT_SHA" \
-            --arg name "Leviathan ${MC_VERSION} build ${BUILD_NUMBER}" \
-            --rawfile desc release_notes.md \
-            --arg url "$ASSET_URL" \
-            '{tag_name:$tag, ref:$ref, name:$name, description:$desc,
-              assets:{links:[{name:"Leviathan paperclip jar", url:$url}]}}' > body.json
-          curl --fail --silent --show-error \
-            --header "PRIVATE-TOKEN: ${{ secrets.GITLAB_TOKEN }}" \
-            --header "Content-Type: application/json" \
-            --data @body.json "$API/releases"
-          echo "### GitLab Release published" >> "$GITHUB_STEP_SUMMARY"
+          # 同 tag 旧 Release 先删,保持幂等(工作流重跑时刷新资产)
+          gh release delete "$TAG" --yes --cleanup-tag || true
+          gh release create "$TAG" \
+            --title "Leviathan ${MC_VERSION} build ${BUILD_NUMBER}" \
+            --notes-file release_notes.md \
+            "./leviathan-${MC_VERSION}-${BUILD_NUMBER}.jar"
+          echo "### GitHub Release published" >> "$GITHUB_STEP_SUMMARY"
           echo "- Tag: \`$TAG\`" >> "$GITHUB_STEP_SUMMARY"
-          echo "- Asset: $ASSET_URL" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Download: https://github.com/${GITHUB_REPOSITORY}/releases/tag/$TAG" >> "$GITHUB_STEP_SUMMARY"
