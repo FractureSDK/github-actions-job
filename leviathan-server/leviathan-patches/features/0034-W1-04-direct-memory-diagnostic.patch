@@ -1,0 +1,128 @@
+From 1dd01ff1215a0d5fa458f5bd22d6bf957951c396 Mon Sep 17 00:00:00 2001
+From: Leviathan <leviathan@vospek.dev>
+Date: Sat, 22 Aug 2026 15:09:29 +0800
+Subject: [PATCH] W1-04 Runtime Diagnostics: direct memory
+
+Direct-buffer usage vs -XX:MaxDirectMemorySize; advises explicit cap (default ~= Xmx is risky for Netty-heavy workloads).
+---
+ .../diagnostics/DirectMemoryDiagnostic.java   | 107 ++++++++++++++++++
+ 1 file changed, 107 insertions(+)
+ create mode 100644 src/main/java/dev/vospek/leviathan/diagnostics/DirectMemoryDiagnostic.java
+
+diff --git a/src/main/java/dev/vospek/leviathan/diagnostics/DirectMemoryDiagnostic.java b/src/main/java/dev/vospek/leviathan/diagnostics/DirectMemoryDiagnostic.java
+new file mode 100644
+index 0000000..181ca8e
+--- /dev/null
++++ b/src/main/java/dev/vospek/leviathan/diagnostics/DirectMemoryDiagnostic.java
+@@ -0,0 +1,107 @@
++package dev.vospek.leviathan.diagnostics;
++
++import java.lang.management.BufferPoolMXBean;
++import java.lang.management.ManagementFactory;
++import java.util.List;
++import java.util.Locale;
++
++/**
++ * W1-04 (patch 0034): Direct Memory
++ * <p>
++ * 直接内存使用量与上限诊断：优先读取 BufferPoolMXBean("direct")，
++ * 上限取 -XX:MaxDirectMemorySize 启动参数；未显式设置时提示
++ * （默认约等于 -Xmx，Netty/RegionIO 密集场景建议显式声明）。
++ */
++public final class DirectMemoryDiagnostic {
++
++    private static final double WARN_RATIO = 0.75;
++
++    /**
++     * 当前直接内存用量（字节）；不可用返回 -1
++     */
++    public long usedBytes() {
++        BufferPoolMXBean pool = directPool();
++        return pool == null ? -1L : pool.getMemoryUsed();
++    }
++
++    /**
++     * 显式配置的直接内存上限（字节）；未设置返回 -1
++     */
++    public long maxBytesFromFlag() {
++        for (String arg : ManagementFactory.getRuntimeMXBean().getInputArguments()) {
++            String prefix = "-xx:maxdirectmemorysize=";
++            if (arg.toLowerCase(Locale.ROOT).startsWith(prefix)) {
++                return parseSize(arg.substring(prefix.length()));
++            }
++        }
++        return -1L;
++    }
++
++    /**
++     * 单行诊断：用量/上限/占比 + 建议列表
++     */
++    public String buildLine() {
++        long used = usedBytes();
++        long max = maxBytesFromFlag();
++        StringBuilder sb = new StringBuilder(160);
++        sb.append("direct-mem=").append(formatMb(used)).append("MB");
++        sb.append(", max=").append(max < 0 ? "unset(≈Xmx)" : formatMb(max) + "MB");
++        List<String> advice = advice(used, max);
++        if (!advice.isEmpty()) {
++            sb.append(" | ");
++            sb.append(String.join("; ", advice));
++        }
++        return sb.toString();
++    }
++
++    /**
++     * 建议项：未设上限、占用超阈值
++     */
++    public List<String> advice(long used, long max) {
++        List<String> out = new java.util.ArrayList<>();
++        if (max < 0) {
++            out.add("set -XX:MaxDirectMemorySize explicitly for predictable OOM behavior");
++        } else if (used > 0 && used > max * WARN_RATIO) {
++            out.add(String.format(Locale.ROOT, "usage %.0f%% of max, watch Netty/region IO leaks",
++                used * 100.0 / max));
++        }
++        return out;
++    }
++
++    private static BufferPoolMXBean directPool() {
++        for (BufferPoolMXBean pool : ManagementFactory.getPlatformMXBeans(BufferPoolMXBean.class)) {
++            if ("direct".equalsIgnoreCase(pool.getName())) {
++                return pool;
++            }
++        }
++        return null;
++    }
++
++    static long parseSize(String value) {
++        String normalized = value.trim().toUpperCase(Locale.ROOT);
++        long multiplier = 1L;
++        if (normalized.endsWith("K")) {
++            multiplier = 1024L;
++        } else if (normalized.endsWith("M")) {
++            multiplier = 1024L * 1024;
++        } else if (normalized.endsWith("G")) {
++            multiplier = 1024L * 1024 * 1024;
++        }
++        if (multiplier > 1) {
++            normalized = normalized.substring(0, normalized.length() - 1);
++        }
++        try {
++            return Long.parseLong(normalized) * multiplier;
++        } catch (NumberFormatException e) {
++            return -1L;
++        }
++    }
++
++    static String formatMb(long bytes) {
++        return bytes < 0 ? "n/a" : String.valueOf(bytes / (1024L * 1024));
++    }
++
++    public static void main(String[] args) {
++        System.out.println(new DirectMemoryDiagnostic().buildLine());
++    }
++}
+\ No newline at end of file
+-- 
+2.54.0.windows.1
+

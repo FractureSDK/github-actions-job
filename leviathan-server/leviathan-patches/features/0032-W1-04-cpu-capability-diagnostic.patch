@@ -1,0 +1,145 @@
+From e4f09c18b42b5664015e697621cfb68f7c18d2b0 Mon Sep 17 00:00:00 2001
+From: Leviathan <leviathan@vospek.dev>
+Date: Sat, 22 Aug 2026 15:09:26 +0800
+Subject: [PATCH] W1-04 Runtime Diagnostics: CPU capability
+
+Reports processors/arch/model and SIMD flags (SSE4.2/AVX2/AVX-512 via /proc/cpuinfo on Linux, NEON heuristic on ARM); feeds featureSIMD decisions without platform-specific dependencies.
+---
+ .../diagnostics/CpuCapabilityDiagnostic.java  | 124 ++++++++++++++++++
+ 1 file changed, 124 insertions(+)
+ create mode 100644 src/main/java/dev/vospek/leviathan/diagnostics/CpuCapabilityDiagnostic.java
+
+diff --git a/src/main/java/dev/vospek/leviathan/diagnostics/CpuCapabilityDiagnostic.java b/src/main/java/dev/vospek/leviathan/diagnostics/CpuCapabilityDiagnostic.java
+new file mode 100644
+index 0000000..96d2de8
+--- /dev/null
++++ b/src/main/java/dev/vospek/leviathan/diagnostics/CpuCapabilityDiagnostic.java
+@@ -0,0 +1,124 @@
++package dev.vospek.leviathan.diagnostics;
++
++import java.io.BufferedReader;
++import java.io.File;
++import java.io.FileReader;
++import java.io.IOException;
++import java.util.Locale;
++
++/**
++ * W1-04 (patch 0032): CPU Capability
++ * <p>
++ * 报告逻辑核数、架构与 SIMD 能力（Linux 读取 /proc/cpuinfo 精确解析；
++ * 其他平台回退为架构启发式）。供 SIMD 类特性（featureSIMD）决策参考。
++ */
++public final class CpuCapabilityDiagnostic {
++
++    /**
++     * CPU 能力快照
++     */
++    public record CpuInfo(
++        int processors,
++        String arch,
++        String model,
++        boolean sse42,
++        boolean avx2,
++        boolean avx512,
++        boolean neon,
++        String source
++    ) {
++    }
++
++    /**
++     * 采集 CPU 能力信息
++     */
++    public CpuInfo collect() {
++        int processors = Runtime.getRuntime().availableProcessors();
++        String arch = System.getProperty("os.arch", "unknown");
++        if (new File("/proc/cpuinfo").canRead()) {
++            return collectFromProc(processors, arch);
++        }
++        // 非 Linux 启发式：ARM 系列视作具备 NEON，x86_64 不做无依据声明
++        boolean arm = arch.toLowerCase(Locale.ROOT).contains("aarch64");
++        return new CpuInfo(processors, arch, "unknown", false, false, arm, arm, "heuristic");
++    }
++
++    private CpuInfo collectFromProc(int processors, String arch) {
++        String model = "unknown";
++        String flags = "";
++        try (BufferedReader reader = new BufferedReader(new FileReader("/proc/cpuinfo"))) {
++            String line;
++            while ((line = reader.readLine()) != null) {
++                if (model.equals("unknown") && line.startsWith("model name")) {
++                    model = afterColon(line);
++                } else if (flags.isEmpty() && line.startsWith("flags")) {
++                    flags = afterColon(line);
++                }
++            }
++        } catch (IOException e) {
++            return new CpuInfo(processors, arch, "unreadable", false, false, false, false, "error");
++        }
++        return new CpuInfo(
++            processors,
++            arch,
++            model,
++            containsFlag(flags, "sse4_2"),
++            containsFlag(flags, "avx2"),
++            flags.contains("avx512"),
++            containsFlag(flags, "asimd") || containsFlag(flags, "neon"),
++            "/proc/cpuinfo"
++        );
++    }
++
++    /**
++     * 单行诊断：核数/模型/向量能力 + 与 jdk.incubator.vector 可用性的关系提示
++     */
++    public String buildLine() {
++        CpuInfo c = collect();
++        StringBuilder sb = new StringBuilder(200);
++        sb.append("cpu=").append(c.processors()).append("x ").append(c.arch());
++        if (!"unknown".equals(c.model())) {
++            sb.append(" (").append(shorten(c.model(), 48)).append(')');
++        }
++        sb.append(" simd:");
++        if (c.sse42()) {
++            sb.append(" SSE4.2");
++        }
++        if (c.avx2()) {
++            sb.append(" AVX2");
++        }
++        if (c.avx512()) {
++            sb.append(" AVX-512");
++        }
++        if (c.neon()) {
++            sb.append(" NEON/ASIMD");
++        }
++        if (!c.sse42() && !c.neon()) {
++            sb.append(" none-detected");
++        }
++        sb.append(" [").append(c.source()).append(']');
++        return sb.toString();
++    }
++
++    private static boolean containsFlag(String flags, String flag) {
++        for (String f : flags.split("\\s+")) {
++            if (f.equals(flag)) {
++                return true;
++            }
++        }
++        return false;
++    }
++
++    private static String afterColon(String line) {
++        int idx = line.indexOf(':');
++        return idx < 0 ? "" : line.substring(idx + 1).trim();
++    }
++
++    private static String shorten(String text, int max) {
++        return text.length() <= max ? text : text.substring(0, max - 3) + "...";
++    }
++
++    public static void main(String[] args) {
++        System.out.println(new CpuCapabilityDiagnostic().buildLine());
++    }
++}
+\ No newline at end of file
+-- 
+2.54.0.windows.1
+

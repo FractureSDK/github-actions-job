@@ -1,0 +1,135 @@
+From 1de050db6c05a3730cadb9521b6d6dbff12c6beb Mon Sep 17 00:00:00 2001
+From: Leviathan <leviathan@vospek.dev>
+Date: Sat, 22 Aug 2026 15:09:31 +0800
+Subject: [PATCH] W1-04 Runtime Diagnostics: allocation attribution
+
+Windowed (default 250ms) process allocation rate with per-thread attribution Top-N via ThreadMXBean allocated-bytes deltas.
+---
+ .../diagnostics/AllocationDiagnostic.java     | 114 ++++++++++++++++++
+ 1 file changed, 114 insertions(+)
+ create mode 100644 src/main/java/dev/vospek/leviathan/diagnostics/AllocationDiagnostic.java
+
+diff --git a/src/main/java/dev/vospek/leviathan/diagnostics/AllocationDiagnostic.java b/src/main/java/dev/vospek/leviathan/diagnostics/AllocationDiagnostic.java
+new file mode 100644
+index 0000000..cbb70c7
+--- /dev/null
++++ b/src/main/java/dev/vospek/leviathan/diagnostics/AllocationDiagnostic.java
+@@ -0,0 +1,114 @@
++package dev.vospek.leviathan.diagnostics;
++
++import com.sun.management.ThreadMXBean;
++import java.lang.management.ManagementFactory;
++import java.util.ArrayList;
++import java.util.Comparator;
++import java.util.List;
++import java.util.Locale;
++
++/**
++ * W1-04 (patch 0036): Allocation
++ * <p>
++ * 分配诊断：窗口化采样（默认 250ms）计算全进程分配速率，
++ * 并给出窗口内分配量 Top-N 线程。与 patch 0002 ZgcMetrics 的
++ * 惰性差分互补：本类提供"带线程归因的短窗口快照"，代价是
++ * 阻塞采样窗口时长。
++ */
++public final class AllocationDiagnostic {
++
++    /**
++     * 单个线程的窗口分配量
++     */
++    public record ThreadAlloc(long threadId, String name, long bytesInWindow) {
++    }
++
++    /**
++     * 采样结果
++     */
++    public record Sample(double rateBytesPerSec, List<ThreadAlloc> topThreads) {
++    }
++
++    /**
++     * 执行一次窗口采样
++     *
++     * @param windowMs   采样窗口（建议 100~500，避免阻塞调用方）
++     * @param topN       归因线程数量
++     */
++    public Sample sample(int windowMs, int topN) {
++        ThreadMXBean bean = ManagementFactory.getPlatformMXBean(ThreadMXBean.class);
++        if (bean == null || !bean.isThreadAllocatedMemorySupported()) {
++            return new Sample(-1.0, List.of());
++        }
++
++        long[] ids = bean.getAllThreadIds();
++        long[] before = snapshot(bean, ids);
++        long startNanos = System.nanoTime();
++        try {
++            Thread.sleep(windowMs);
++        } catch (InterruptedException e) {
++            Thread.currentThread().interrupt();
++            return new Sample(-1.0, List.of());
++        }
++        long[] after = snapshot(bean, ids);
++        double seconds = (System.nanoTime() - startNanos) / 1_000_000_000.0;
++
++        List<ThreadAlloc> attributed = new ArrayList<>();
++        for (int i = 0; i < ids.length; i++) {
++            if (before[i] < 0 || after[i] < 0) {
++                continue;
++            }
++            long delta = after[i] - before[i];
++            if (delta > 0) {
++                String name = threadName(ids[i]);
++                attributed.add(new ThreadAlloc(ids[i], name, delta));
++            }
++        }
++        attributed.sort(Comparator.comparingLong(ThreadAlloc::bytesInWindow).reversed());
++
++        long total = attributed.stream().mapToLong(ThreadAlloc::bytesInWindow).sum();
++        return new Sample(total / seconds,
++            attributed.subList(0, Math.min(topN, attributed.size())));
++    }
++
++    /**
++     * 单行诊断：速率 + Top3 归因
++     */
++    public String buildLine() {
++        Sample sample = sample(250, 3);
++        if (sample.rateBytesPerSec() < 0) {
++            return "allocation: unsupported on this JVM";
++        }
++        StringBuilder sb = new StringBuilder(200);
++        sb.append(String.format(Locale.ROOT, "alloc-rate=%.1fMB/s; top:",
++            sample.rateBytesPerSec() / (1024.0 * 1024)));
++        for (ThreadAlloc alloc : sample.topThreads()) {
++            sb.append(' ').append(shorten(alloc.name(), 24))
++                .append('=').append(alloc.bytesInWindow() / 1024).append("KB");
++        }
++        return sb.toString();
++    }
++
++    private static long[] snapshot(ThreadMXBean bean, long[] ids) {
++        long[] values = new long[ids.length];
++        for (int i = 0; i < ids.length; i++) {
++            Long allocated = bean.getThreadAllocatedBytes(ids[i]);
++            values[i] = allocated == null ? -1L : allocated;
++        }
++        return values;
++    }
++
++    private static String threadName(long id) {
++        java.lang.management.ThreadInfo info =
++            ManagementFactory.getThreadMXBean().getThreadInfo(id);
++        return info == null ? "tid-" + id : info.getThreadName();
++    }
++
++    private static String shorten(String text, int max) {
++        return text.length() <= max ? text : text.substring(0, max - 3) + "...";
++    }
++
++    public static void main(String[] args) {
++        System.out.println(new AllocationDiagnostic().buildLine());
++    }
++}
+\ No newline at end of file
+-- 
+2.54.0.windows.1
+

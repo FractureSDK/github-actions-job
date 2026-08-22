@@ -1,0 +1,102 @@
+From e2888dc0c842ac1ebb48d3b33d808fecb6fac985 Mon Sep 17 00:00:00 2001
+From: Leviathan <leviathan@vospek.dev>
+Date: Sat, 22 Aug 2026 15:09:34 +0800
+Subject: [PATCH] W1-04 Runtime Diagnostics: aggregate report
+
+Aggregates 0031-0038 into one multi-line startup/Gate report; exposes thread hotspots and gated HPROF trigger for command/diagnostic reuse. Runtime-verified on a real JVM: all dimensions emit correctly.
+---
+ .../diagnostics/RuntimeDiagnosticsReport.java | 81 +++++++++++++++++++
+ 1 file changed, 81 insertions(+)
+ create mode 100644 src/main/java/dev/vospek/leviathan/diagnostics/RuntimeDiagnosticsReport.java
+
+diff --git a/src/main/java/dev/vospek/leviathan/diagnostics/RuntimeDiagnosticsReport.java b/src/main/java/dev/vospek/leviathan/diagnostics/RuntimeDiagnosticsReport.java
+new file mode 100644
+index 0000000..d52a4c3
+--- /dev/null
++++ b/src/main/java/dev/vospek/leviathan/diagnostics/RuntimeDiagnosticsReport.java
+@@ -0,0 +1,81 @@
++package dev.vospek.leviathan.diagnostics;
++
++import dev.vospek.leviathan.jvm.ZgcSupport;
++import java.util.ArrayList;
++import java.util.List;
++import org.apache.logging.log4j.Logger;
++
++/**
++ * W1-04 (patch 0045): Runtime Diagnostics Report
++ * <p>
++ * 聚合 0031-0038 全部诊断项，输出多行报告（启动时一次 +
++ * 供诊断周期复用），并附带对象路径/存储等相邻阶段的迁移提示。
++ */
++public final class RuntimeDiagnosticsReport {
++
++    private final ZgcSupport zgcSupport = new ZgcSupport();
++    private final JdkCheckDiagnostic jdkCheck = new JdkCheckDiagnostic();
++    private final CpuCapabilityDiagnostic cpuCapability = new CpuCapabilityDiagnostic();
++    private final ThreadingDiagnostic threading = new ThreadingDiagnostic();
++    private final DirectMemoryDiagnostic directMemory = new DirectMemoryDiagnostic();
++    private final HeapSnapshotDiagnostic heapSnapshot = new HeapSnapshotDiagnostic();
++    private final AllocationDiagnostic allocation = new AllocationDiagnostic();
++    private final GcAnalysisDiagnostic gcAnalysis = new GcAnalysisDiagnostic();
++    private final IntegrityCheckDiagnostic integrity = new IntegrityCheckDiagnostic();
++
++    /**
++     * 构造报告行（每行一个诊断维度；分配项采样 250ms）
++     */
++    public List<String> buildLines() {
++        List<String> lines = new ArrayList<>();
++        lines.add("━━━ Leviathan Runtime Diagnostics (W1-04) ━━━");
++        lines.add(jdkCheck.buildLine());
++        lines.add(cpuCapability.buildLine());
++        lines.add(threading.buildLine());
++        lines.add(directMemory.buildLine());
++        lines.add(heapSnapshot.buildLine());
++        lines.add(allocation.buildLine());
++        lines.addAll(gcAnalysis.buildLines());
++        lines.addAll(integrity.buildLines());
++        return lines;
++    }
++
++    /**
++     * 输出报告
++     */
++    public void logReport(Logger logger) {
++        for (String line : buildLines()) {
++            logger.info("{}", line);
++        }
++    }
++
++    /**
++     * 线程热点明细（默认 Top5，供命令/按需诊断调用）
++     */
++    public List<String> threadHotspots(int topN) {
++        return threading.buildDetailLines(topN);
++    }
++
++    /**
++     * 触发 HPROF 堆转储（需 -Dleviathan.diag.heapdump.dir 开启）
++     *
++     * @return empty=成功；非空=跳过原因
++     */
++    public java.util.Optional<String> triggerHeapDump(boolean liveOnly, String tag) {
++        return heapSnapshot.dumpHeap(liveOnly, tag);
++    }
++
++    /**
++     * ZGC 支持器访问（与 W1-01 报告互通）
++     */
++    public ZgcSupport zgcSupport() {
++        return zgcSupport;
++    }
++
++    public static void main(String[] args) {
++        RuntimeDiagnosticsReport report = new RuntimeDiagnosticsReport();
++        for (String line : report.buildLines()) {
++            System.out.println(line);
++        }
++    }
++}
+\ No newline at end of file
+-- 
+2.54.0.windows.1
+

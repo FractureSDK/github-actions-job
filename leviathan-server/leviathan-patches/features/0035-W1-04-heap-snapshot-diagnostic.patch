@@ -1,0 +1,113 @@
+From a915122a87fbd37ad6ef92242c435b764bcb6367 Mon Sep 17 00:00:00 2001
+From: Leviathan <leviathan@vospek.dev>
+Date: Sat, 22 Aug 2026 15:09:30 +0800
+Subject: [PATCH] W1-04 Runtime Diagnostics: heap snapshot
+
+Heap pool table plus opt-in HPROF dump via HotSpotDiagnosticMXBean, gated behind -Dleviathan.diag.heapdump.dir to avoid accidental stop-the-world pauses.
+---
+ .../diagnostics/HeapSnapshotDiagnostic.java   | 92 +++++++++++++++++++
+ 1 file changed, 92 insertions(+)
+ create mode 100644 src/main/java/dev/vospek/leviathan/diagnostics/HeapSnapshotDiagnostic.java
+
+diff --git a/src/main/java/dev/vospek/leviathan/diagnostics/HeapSnapshotDiagnostic.java b/src/main/java/dev/vospek/leviathan/diagnostics/HeapSnapshotDiagnostic.java
+new file mode 100644
+index 0000000..13546b4
+--- /dev/null
++++ b/src/main/java/dev/vospek/leviathan/diagnostics/HeapSnapshotDiagnostic.java
+@@ -0,0 +1,92 @@
++package dev.vospek.leviathan.diagnostics;
++
++import java.lang.management.ManagementFactory;
++import java.lang.management.MemoryPoolMXBean;
++import java.lang.management.MemoryType;
++import java.lang.management.MemoryUsage;
++import java.util.Locale;
++import java.util.Optional;
++
++/**
++ * W1-04 (patch 0035): Heap Snapshot
++ * <p>
++ * 两个能力：
++ * <ol>
++ *   <li>堆内存池表（used/committed/max 占比），轻量快照</li>
++ *   <li>HPROF 堆转储：经 HotSpotDiagnosticMXBean 触发，默认关闭，
++ *       需 -Dleviathan.diag.heapdump.dir=&lt;dir&gt; 显式开启，防止误触发长停顿</li>
++ * </ol>
++ */
++public final class HeapSnapshotDiagnostic {
++
++    private static final String DUMP_DIR_PROPERTY = "leviathan.diag.heapdump.dir";
++
++    /**
++     * 单行堆池表：每个池 used/committed/max(MB)
++     */
++    public String buildPoolsLine() {
++        StringBuilder sb = new StringBuilder(256);
++        sb.append("heap pools: ");
++        for (MemoryPoolMXBean pool : ManagementFactory.getMemoryPoolMXBeans()) {
++            if (pool.getType() != MemoryType.HEAP) {
++                continue;
++            }
++            MemoryUsage usage = pool.getUsage();
++            if (usage == null) {
++                continue;
++            }
++            if (!sb.isEmpty() && sb.charAt(sb.length() - 1) != ' ') {
++                sb.append(", ");
++            }
++            sb.append(pool.getName()).append('=')
++                .append(usage.getUsed() / (1024L * 1024)).append('/')
++                .append(usage.getCommitted() / (1024L * 1024)).append('/')
++                .append(usage.getMax() < 0 ? "?" : usage.getMax() / (1024L * 1024));
++        }
++        sb.append(" (MB used/committed/max)");
++        return sb.toString();
++    }
++
++    /**
++     * 触发 HPROF 转储；未配置目录或平台不支持时返回 empty（附原因）
++     *
++     * @param live true=仅存活对象（触发完整 GC）；false=全部对象
++     */
++    public Optional<String> dumpHeap(boolean live, String tag) {
++        String dir = System.getProperty(DUMP_DIR_PROPERTY);
++        if (dir == null || dir.isBlank()) {
++            return Optional.of("disabled; set -D" + DUMP_DIR_PROPERTY + "=<dir> to enable");
++        }
++        try {
++            com.sun.management.HotSpotDiagnosticMXBean bean =
++                ManagementFactory.getPlatformMXBean(
++                    com.sun.management.HotSpotDiagnosticMXBean.class);
++            if (bean == null) {
++                return Optional.of("platform does not expose HotSpotDiagnosticMXBean");
++            }
++            String file = dir + "/leviathan-heap-" + tag + "-" + System.currentTimeMillis()
++                + (live ? ".hprof" : "-all.hprof");
++            bean.dumpHeap(file, live);
++            return Optional.empty();
++        } catch (Exception e) {
++            return Optional.of("dump failed: " + e.getMessage());
++        }
++    }
++
++    /**
++     * 汇总行（供 0045 报告复用）：池表 + 转储开关状态
++     */
++    public String buildLine() {
++        boolean enabled = System.getProperty(DUMP_DIR_PROPERTY) != null;
++        return String.format(Locale.ROOT, "%s | hprof-dump=%s",
++            buildPoolsLine(), enabled ? "enabled(" + System.getProperty(DUMP_DIR_PROPERTY) + ")"
++                : "disabled");
++    }
++
++    public static void main(String[] args) {
++        HeapSnapshotDiagnostic diagnostic = new HeapSnapshotDiagnostic();
++        System.out.println(diagnostic.buildLine());
++        diagnostic.dumpHeap(false, "selftest").ifPresent(reason ->
++            System.out.println("dump skipped: " + reason));
++    }
++}
+\ No newline at end of file
+-- 
+2.54.0.windows.1
+

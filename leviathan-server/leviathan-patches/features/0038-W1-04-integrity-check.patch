@@ -1,0 +1,124 @@
+From 60576e29ae3b7aca5cae7136ceb230a9ed0e5cf6 Mon Sep 17 00:00:00 2001
+From: Leviathan <leviathan@vospek.dev>
+Date: Sat, 22 Aug 2026 15:09:33 +0800
+Subject: [PATCH] W1-04 Runtime Diagnostics: integrity checks
+
+Read-only consistency checks: declared-vs-detected GC cross-check (via patch 0001 ZgcSupport), file.encoding UTF-8, nanoTime clock-rate sanity, explicit user.timezone advisory. PASS/FAIL lines with summary.
+---
+ .../diagnostics/IntegrityCheckDiagnostic.java | 103 ++++++++++++++++++
+ 1 file changed, 103 insertions(+)
+ create mode 100644 src/main/java/dev/vospek/leviathan/diagnostics/IntegrityCheckDiagnostic.java
+
+diff --git a/src/main/java/dev/vospek/leviathan/diagnostics/IntegrityCheckDiagnostic.java b/src/main/java/dev/vospek/leviathan/diagnostics/IntegrityCheckDiagnostic.java
+new file mode 100644
+index 0000000..b9124c9
+--- /dev/null
++++ b/src/main/java/dev/vospek/leviathan/diagnostics/IntegrityCheckDiagnostic.java
+@@ -0,0 +1,103 @@
++package dev.vospek.leviathan.diagnostics;
++
++import dev.vospek.leviathan.jvm.ZgcSupport;
++import java.util.ArrayList;
++import java.util.List;
++import java.util.Locale;
++
++/**
++ * W1-04 (patch 0038): Integrity
++ * <p>
++ * 运行时环境一致性自检（全部只读、无副作用）：
++ * <ul>
++ *   <li>GC 一致性：启动参数声明的 GC 与 MXBean 检测结果一致</li>
++ *   <li>字符编码：file.encoding 应为 UTF-8（日志/存档一致性）</li>
++ *   <li>时钟单调性：nanoTime 采样速率在合理区间（防时钟源异常）</li>
++ *   <li>时区声明：未显式设置 user.timezone 时提示（多机日志对齐）</li>
++ * </ul>
++ */
++public final class IntegrityCheckDiagnostic {
++
++    /**
++     * 单项检查结果
++     */
++    public record Check(String name, boolean passed, String detail) {
++    }
++
++    private final ZgcSupport zgcSupport = new ZgcSupport();
++
++    /**
++     * 执行全部检查
++     */
++    public List<Check> runAll() {
++        List<Check> checks = new ArrayList<>();
++        checks.add(checkGcConsistency());
++        checks.add(checkFileEncoding());
++        checks.add(checkClockMonotonic());
++        checks.add(checkTimezoneDeclared());
++        return checks;
++    }
++
++    /**
++     * 多行输出：每项一行，含 PASS/FAIL 标记与详情
++     */
++    public List<String> buildLines() {
++        List<String> lines = new ArrayList<>();
++        int failed = 0;
++        for (Check check : runAll()) {
++            if (!check.passed()) {
++                failed++;
++            }
++            lines.add(String.format(Locale.ROOT, "integrity[%s] %s: %s",
++                check.passed() ? "PASS" : "FAIL", check.name(), check.detail()));
++        }
++        lines.add(failed == 0 ? "integrity summary: all checks passed"
++            : String.format(Locale.ROOT, "integrity summary: %d check(s) failed", failed));
++        return lines;
++    }
++
++    private Check checkGcConsistency() {
++        boolean flagPresent = !zgcSupport.findFlags("-xx:+usezc").isEmpty();
++        boolean detected = zgcSupport.isZgcEnabled();
++        boolean consistent = flagPresent == detected || (!flagPresent && !detected);
++        return new Check("gc-consistency", consistent,
++            "UseZGC-flag=" + flagPresent + ", detected=" + detected);
++    }
++
++    private Check checkFileEncoding() {
++        String encoding = System.getProperty("file.encoding", "unknown");
++        boolean utf8 = encoding.toLowerCase(Locale.ROOT).contains("utf-8")
++            || "UTF8".equalsIgnoreCase(encoding) || "UTF-8".equals(encoding);
++        return new Check("file-encoding", utf8,
++            utf8 ? encoding : encoding + "; expect UTF-8 for log/archive consistency");
++    }
++
++    private Check checkClockMonotonic() {
++        long start = System.nanoTime();
++        long startMs = System.currentTimeMillis();
++        try {
++            Thread.sleep(20);
++        } catch (InterruptedException e) {
++            Thread.currentThread().interrupt();
++            return new Check("clock-monotonic", false, "interrupted during sampling");
++        }
++        long nanoDelta = System.nanoTime() - start;
++        long msDelta = System.currentTimeMillis() - startMs;
++        double ratio = msDelta <= 0 ? -1.0 : (nanoDelta / 1_000_000.0) / msDelta;
++        // 采样窗口极短，允许较宽区间；异常时钟源的比值会显著偏离 1
++        boolean sane = nanoDelta >= 0 && ratio >= 0.2 && ratio <= 5.0;
++        return new Check("clock-monotonic", sane,
++            String.format(Locale.ROOT, "nano/ms ratio=%.2f", ratio));
++    }
++
++    private Check checkTimezoneDeclared() {
++        String timezone = System.getProperty("user.timezone", "");
++        boolean declared = timezone != null && !timezone.isBlank();
++        return new Check("timezone-declared", declared,
++            declared ? timezone : "unset; set -Duser.timezone=UTC for aligned multi-node logs");
++    }
++
++    public static void main(String[] args) {
++        new IntegrityCheckDiagnostic().buildLines().forEach(System.out::println);
++    }
++}
+\ No newline at end of file
+-- 
+2.54.0.windows.1
+

@@ -1,0 +1,132 @@
+From 64379eaa2fe4439281f48a6f888603e91a2fc783 Mon Sep 17 00:00:00 2001
+From: Leviathan <leviathan@vospek.dev>
+Date: Sat, 22 Aug 2026 15:09:27 +0800
+Subject: [PATCH] W1-04 Runtime Diagnostics: threading
+
+Thread counts/peak/daemon ratio, state histogram, deadlocked-thread detection, and CPU-time Top-N hot threads.
+---
+ .../diagnostics/ThreadingDiagnostic.java      | 111 ++++++++++++++++++
+ 1 file changed, 111 insertions(+)
+ create mode 100644 src/main/java/dev/vospek/leviathan/diagnostics/ThreadingDiagnostic.java
+
+diff --git a/src/main/java/dev/vospek/leviathan/diagnostics/ThreadingDiagnostic.java b/src/main/java/dev/vospek/leviathan/diagnostics/ThreadingDiagnostic.java
+new file mode 100644
+index 0000000..57711f3
+--- /dev/null
++++ b/src/main/java/dev/vospek/leviathan/diagnostics/ThreadingDiagnostic.java
+@@ -0,0 +1,111 @@
++package dev.vospek.leviathan.diagnostics;
++
++import com.sun.management.ThreadMXBean;
++import java.lang.management.ManagementFactory;
++import java.util.ArrayList;
++import java.util.Comparator;
++import java.util.LinkedHashMap;
++import java.util.List;
++import java.util.Locale;
++import java.util.Map;
++
++/**
++ * W1-04 (patch 0033): Threading
++ * <p>
++ * 线程健康诊断：计数/峰值/守护比例、状态分布、死锁检测，
++ * 以及按 CPU 时间排序的热点线程 Top-N。
++ */
++public final class ThreadingDiagnostic {
++
++    private static final long NS_PER_MS = 1_000_000L;
++
++    /**
++     * 热点线程条目
++     */
++    public record HotThread(long id, String name, long cpuMs, String state) {
++    }
++
++    private static ThreadMXBean platform() {
++        return ManagementFactory.getPlatformMXBean(ThreadMXBean.class);
++    }
++
++    /**
++     * 单行诊断：总数/峰值/守护/死锁
++     */
++    public String buildLine() {
++        java.lang.management.ThreadMXBean bean = ManagementFactory.getThreadMXBean();
++        int daemon = bean.getDaemonThreadCount();
++        int total = bean.getThreadCount();
++        long[] deadlocked = bean.findDeadlockedThreads();
++        return String.format(Locale.ROOT,
++            "threads=%d (peak=%d, daemon=%d, %.0f%%), deadlocked=%d",
++            total,
++            bean.getPeakThreadCount(),
++            daemon,
++            total == 0 ? 0 : daemon * 100.0 / total,
++            deadlocked == null ? 0 : deadlocked.length);
++    }
++
++    /**
++     * 状态分布（NEW/RUNNABLE/WAITING/... → 计数）
++     */
++    public Map<String, Integer> stateHistogram() {
++        java.lang.management.ThreadMXBean bean = ManagementFactory.getThreadMXBean();
++        Map<String, Integer> histogram = new LinkedHashMap<>();
++        for (java.lang.management.ThreadInfo info : bean.getThreadInfo(bean.getAllThreadIds())) {
++            if (info == null) {
++                continue;
++            }
++            histogram.merge(info.getThreadState().name(), 1, Integer::sum);
++        }
++        return histogram;
++    }
++
++    /**
++     * 按 CPU 时间取热点线程 Top-N（需要平台 MXBean 支持；不支持返回空表）
++     */
++    public List<HotThread> topCpuThreads(int limit) {
++        ThreadMXBean bean = platform();
++        if (bean == null || !bean.isThreadCpuTimeSupported()) {
++            return List.of();
++        }
++        record Entry(long id, long cpuNs) {
++        }
++        List<Entry> entries = new ArrayList<>();
++        for (long id : bean.getAllThreadIds()) {
++            long cpu = bean.getThreadCpuTime(id);
++            if (cpu > 0) {
++                entries.add(new Entry(id, cpu));
++            }
++        }
++        entries.sort(Comparator.comparingLong(Entry::cpuNs).reversed());
++        List<HotThread> out = new ArrayList<>(Math.min(limit, entries.size()));
++        for (Entry entry : entries.subList(0, Math.min(limit, entries.size()))) {
++            java.lang.management.ThreadInfo info = bean.getThreadInfo(entry.id(), 0);
++            out.add(new HotThread(
++                entry.id(),
++                info == null ? "unknown" : info.getThreadName(),
++                entry.cpuNs() / NS_PER_MS,
++                info == null ? "unknown" : info.getThreadState().name()));
++        }
++        return out;
++    }
++
++    /**
++     * 多行详细视图（含状态分布与热点）
++     */
++    public List<String> buildDetailLines(int topN) {
++        List<String> lines = new ArrayList<>();
++        lines.add(buildLine());
++        lines.add("thread states: " + stateHistogram());
++        for (HotThread hot : topCpuThreads(topN)) {
++            lines.add(String.format(Locale.ROOT, "hot[%d] %sms %s %s",
++                hot.id(), hot.cpuMs(), hot.state(), hot.name()));
++        }
++        return lines;
++    }
++
++    public static void main(String[] args) {
++        new ThreadingDiagnostic().buildDetailLines(5).forEach(System.out::println);
++    }
++}
+\ No newline at end of file
+-- 
+2.54.0.windows.1
+

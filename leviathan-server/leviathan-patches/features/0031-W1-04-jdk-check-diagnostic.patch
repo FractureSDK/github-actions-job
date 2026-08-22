@@ -1,0 +1,109 @@
+From a63d404feed3e1ac9fca040fd583bad94e3c7157 Mon Sep 17 00:00:00 2001
+From: Leviathan <leviathan@vospek.dev>
+Date: Sat, 22 Aug 2026 15:09:25 +0800
+Subject: [PATCH] W1-04 Runtime Diagnostics: JDK check
+
+Parses runtime JDK feature version, LTS status and vendor; verdict against minimum 21 / recommended 25 with actionable upgrade hint.
+---
+ .../diagnostics/JdkCheckDiagnostic.java       | 88 +++++++++++++++++++
+ 1 file changed, 88 insertions(+)
+ create mode 100644 src/main/java/dev/vospek/leviathan/diagnostics/JdkCheckDiagnostic.java
+
+diff --git a/src/main/java/dev/vospek/leviathan/diagnostics/JdkCheckDiagnostic.java b/src/main/java/dev/vospek/leviathan/diagnostics/JdkCheckDiagnostic.java
+new file mode 100644
+index 0000000..e051fc1
+--- /dev/null
++++ b/src/main/java/dev/vospek/leviathan/diagnostics/JdkCheckDiagnostic.java
+@@ -0,0 +1,88 @@
++package dev.vospek.leviathan.diagnostics;
++
++import java.util.Locale;
++
++/**
++ * W1-04 (patch 0031): JDK Check
++ * <p>
++ * 解析运行时 JDK 版本与供应商，判定是否满足 Leviathan 建议区间：
++ * 最低 21（LTS），推荐 25。输出单行诊断。
++ */
++public final class JdkCheckDiagnostic {
++
++    private static final int MIN_SUPPORTED = 21;
++    private static final int RECOMMENDED = 25;
++
++    /**
++     * JDK 版本信息快照
++     */
++    public record JdkInfo(
++        String versionString,
++        int featureVersion,
++        boolean lts,
++        String vendor,
++        String vmName
++    ) {
++    }
++
++    /**
++     * 采集当前运行时信息
++     */
++    public JdkInfo collect() {
++        String version = System.getProperty("java.version", "unknown");
++        return new JdkInfo(
++            version,
++            parseFeatureVersion(version),
++            isLts(parseFeatureVersion(version)),
++            System.getProperty("java.vendor", "unknown"),
++            System.getProperty("java.vm.name", "unknown")
++        );
++    }
++
++    /**
++     * 单行诊断：版本/LTS/判定 + 不达标建议
++     */
++    public String buildLine() {
++        JdkInfo info = collect();
++        StringBuilder sb = new StringBuilder(160);
++        sb.append("jdk=").append(info.versionString());
++        sb.append(" (feature=").append(info.featureVersion());
++        sb.append(", lts=").append(info.lts()).append(")");
++        if (info.featureVersion() < MIN_SUPPORTED) {
++            sb.append(String.format(Locale.ROOT,
++                " [TOO OLD] minimum %d, recommended %d; upgrade the runtime.",
++                MIN_SUPPORTED, RECOMMENDED));
++        } else if (info.featureVersion() < RECOMMENDED) {
++            sb.append(String.format(Locale.ROOT,
++                " [OK] supported; recommended %d for best ZGC/generational behavior.",
++                RECOMMENDED));
++        } else {
++            sb.append(" [OK]");
++        }
++        return sb.toString();
++    }
++
++    /**
++     * 从 "21.0.3"、"25"、"1.8.0_392" 等格式解析主版本号；失败返回 -1
++     */
++    static int parseFeatureVersion(String version) {
++        try {
++            String normalized = version.startsWith("1.") ? version.substring(2) : version;
++            String head = normalized.split("[._+-]", 2)[0];
++            return Integer.parseInt(head);
++        } catch (RuntimeException e) {
++            return -1;
++        }
++    }
++
++    private static boolean isLts(int feature) {
++        return switch (feature) {
++            case 8, 11, 17, 21, 25 -> true;
++            default -> false;
++        };
++    }
++
++    public static void main(String[] args) {
++        System.out.println(new JdkCheckDiagnostic().buildLine());
++    }
++}
+\ No newline at end of file
+-- 
+2.54.0.windows.1
+

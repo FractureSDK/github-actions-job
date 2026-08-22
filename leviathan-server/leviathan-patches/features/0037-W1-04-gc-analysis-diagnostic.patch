@@ -1,0 +1,161 @@
+From 2a4aed33ba96f431c6d59971692a851d6c11e52d Mon Sep 17 00:00:00 2001
+From: Leviathan <leviathan@vospek.dev>
+Date: Sat, 22 Aug 2026 15:09:32 +0800
+Subject: [PATCH] W1-04 Runtime Diagnostics: GC analysis
+
+Event-level GC analysis: registers GarbageCollectionNotificationInfo listener once per collector, keeps a ring of the last 16 events (action/cause/heap-before-after), reports avg reclaimed and dominant cause alongside MXBean totals.
+---
+ .../diagnostics/GcAnalysisDiagnostic.java     | 140 ++++++++++++++++++
+ 1 file changed, 140 insertions(+)
+ create mode 100644 src/main/java/dev/vospek/leviathan/diagnostics/GcAnalysisDiagnostic.java
+
+diff --git a/src/main/java/dev/vospek/leviathan/diagnostics/GcAnalysisDiagnostic.java b/src/main/java/dev/vospek/leviathan/diagnostics/GcAnalysisDiagnostic.java
+new file mode 100644
+index 0000000..433a977
+--- /dev/null
++++ b/src/main/java/dev/vospek/leviathan/diagnostics/GcAnalysisDiagnostic.java
+@@ -0,0 +1,140 @@
++package dev.vospek.leviathan.diagnostics;
++
++import com.sun.management.GarbageCollectionNotificationInfo;
++import java.lang.management.GarbageCollectorMXBean;
++import java.lang.management.ManagementFactory;
++import java.util.ArrayDeque;
++import java.util.ArrayList;
++import java.util.Deque;
++import java.util.List;
++import java.util.Locale;
++import javax.management.Notification;
++import javax.management.NotificationEmitter;
++import javax.management.NotificationListener;
++import javax.management.ObjectName;
++import javax.management.openmbean.CompositeData;
++
++/**
++ * W1-04 (patch 0037): GC Analysis
++ * <p>
++ * 在 patch 0002 ZgcMetrics（总量/速率）之上补充"事件级"分析：
++ * 监听 GC 通知，保留最近 N 次事件的收集器/原因/GC 前后堆量，
++ * 输出近期暂停均值与主要成因。监听器在首次实例化时注册一次。
++ */
++public final class GcAnalysisDiagnostic implements NotificationListener {
++
++    private static final int EVENT_HISTORY = 16;
++
++    /**
++     * 单次 GC 事件
++     */
++    public record GcEvent(String collector, String action, String cause,
++        long heapBeforeBytes, long heapAfterBytes, long timestampMs) {
++
++        public long reclaimedBytes() {
++            return Math.max(0L, heapBeforeBytes - heapAfterBytes);
++        }
++    }
++
++    private final Deque<GcEvent> recent = new ArrayDeque<>(EVENT_HISTORY);
++
++    /**
++     * 注册通知监听（幂等：每个收集器仅注册一次）
++     */
++    public GcAnalysisDiagnostic() {
++        for (GarbageCollectorMXBean bean : ManagementFactory.getGarbageCollectorMXBeans()) {
++            if (bean instanceof NotificationEmitter emitter) {
++                emitter.addNotificationListener(this, null, null);
++            }
++        }
++    }
++
++    @Override
++    public void handleNotification(Notification notification, Object handback) {
++        if (!GarbageCollectionNotificationInfo.GARBAGE_COLLECTION_NOTIFICATION
++            .equals(notification.getType())) {
++            return;
++        }
++        GarbageCollectionNotificationInfo info =
++            GarbageCollectionNotificationInfo.from((CompositeData) notification.getUserData());
++        long before = info.getGcInfo().getMemoryUsageBeforeGc().values().stream()
++            .mapToLong(usage -> usage.getUsed()).sum();
++        long after = info.getGcInfo().getMemoryUsageAfterGc().values().stream()
++            .mapToLong(usage -> usage.getUsed()).sum();
++        synchronized (recent) {
++            if (recent.size() == EVENT_HISTORY) {
++                recent.removeFirst();
++            }
++            String collectorName = notification.getSource() instanceof ObjectName objectName
++                    ? objectName.getKeyProperty("name").replace("\"", "")
++                    : String.valueOf(notification.getSource());
++            recent.addLast(new GcEvent(
++                collectorName,
++                info.getGcAction(),
++                info.getGcCause(),
++                before,
++                after,
++                info.getGcInfo().getStartTime()));
++        }
++    }
++
++    /**
++     * 最近事件快照
++     */
++    public List<GcEvent> recentEvents() {
++        synchronized (recent) {
++            return List.copyOf(recent);
++        }
++    }
++
++    /**
++     * 多行分析：总量 + 近期事件 + 暂停/回收统计
++     */
++    public List<String> buildLines() {
++        List<String> lines = new ArrayList<>();
++        long count = 0L;
++        long timeMs = 0L;
++        for (GarbageCollectorMXBean bean : ManagementFactory.getGarbageCollectorMXBeans()) {
++            count += Math.max(0, bean.getCollectionCount());
++            timeMs += Math.max(0, bean.getCollectionTime());
++        }
++        lines.add(String.format(Locale.ROOT, "gc totals: count=%d time=%dms", count, timeMs));
++
++        List<GcEvent> events = recentEvents();
++        if (events.isEmpty()) {
++            lines.add("gc events: none observed since listener registration");
++            return lines;
++        }
++        double avgReclaimedMb = events.stream()
++            .mapToLong(GcEvent::reclaimedBytes).average().orElse(0) / (1024.0 * 1024);
++        String dominantCause = dominantCause(events);
++        lines.add(String.format(Locale.ROOT,
++            "gc events: last=%d, avg-reclaimed=%.1fMB, dominant-cause=\"%s\"",
++            events.size(), avgReclaimedMb, dominantCause));
++        GcEvent last = events.getLast();
++        lines.add(String.format(Locale.ROOT,
++            "gc last: %s | %s | cause=\"%s\" | heap %dMB -> %dMB",
++            last.collector(), last.action(), last.cause(),
++            last.heapBeforeBytes() / (1024L * 1024),
++            last.heapAfterBytes() / (1024L * 1024)));
++        return lines;
++    }
++
++    private static String dominantCause(List<GcEvent> events) {
++        java.util.Map<String, Long> byCount = new java.util.LinkedHashMap<>();
++        for (GcEvent event : events) {
++            byCount.merge(event.cause(), 1L, Long::sum);
++        }
++        return byCount.entrySet().stream()
++            .max(java.util.Map.Entry.comparingByValue())
++            .map(java.util.Map.Entry::getKey)
++            .orElse("unknown");
++    }
++
++    public static void main(String[] args) throws Exception {
++        // 触发一次显式 GC 以便自检能捕获事件（受 JVM 显式 GC 策略影响）
++        System.gc();
++        Thread.sleep(200);
++        new GcAnalysisDiagnostic().buildLines().forEach(System.out::println);
++    }
++}
+\ No newline at end of file
+-- 
+2.54.0.windows.1
+
