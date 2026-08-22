@@ -1,0 +1,274 @@
+From a0132aba72dbca04e8cb62b0adc9045164336341 Mon Sep 17 00:00:00 2001
+From: Leviathan <leviathan@vospek.dev>
+Date: Sat, 22 Aug 2026 12:22:33 +0800
+Subject: [PATCH] W1-03 Fastutil: plugin surface guard
+
+Enforces the W1-03 core risk chain at the boundary: guarded expose()
+wrappers, strict mode (-Dleviathan.collection.guard=strict) logging
+mutation attempts with stack traces, and a violation counter feeding
+diagnostics. Internal implementation may change; external behavior may
+not.
+---
+ .../collection/PluginSurfaceGuard.java        | 249 ++++++++++++++++++
+ 1 file changed, 249 insertions(+)
+ create mode 100644 src/main/java/dev/vospek/leviathan/collection/PluginSurfaceGuard.java
+
+diff --git a/src/main/java/dev/vospek/leviathan/collection/PluginSurfaceGuard.java b/src/main/java/dev/vospek/leviathan/collection/PluginSurfaceGuard.java
+new file mode 100644
+index 0000000..b55c4f0
+--- /dev/null
++++ b/src/main/java/dev/vospek/leviathan/collection/PluginSurfaceGuard.java
+@@ -0,0 +1,249 @@
++package dev.vospek.leviathan.collection;
++
++import java.util.Collection;
++import java.util.List;
++import java.util.Map;
++import java.util.Set;
++import java.util.concurrent.atomic.AtomicLong;
++import org.apache.logging.log4j.Logger;
++
++/**
++ * W1-03 (patch 0018): 插件边界守卫
++ * <p>
++ * 对跨越 Bukkit API 边界的集合出口做两件事：
++ * <ol>
++ *   <li>强制经 {@link CompatViews#expose} 包装（结构不可变）</li>
++ *   <li>调试模式（-Dleviathan.collection.guard=strict）下记录
++ *       外部尝试修改被守卫集合的调用栈，便于定位越界写入的插件/代码路径</li>
++ * </ol>
++ * 守卫计数可通过 {@link #violationCount()} 观测，接入诊断日志。
++ */
++public final class PluginSurfaceGuard {
++
++    private static final AtomicLong VIOLATIONS = new AtomicLong();
++    private static final boolean STRICT =
++        "strict".equalsIgnoreCase(System.getProperty("leviathan.collection.guard", "off"));
++
++    private PluginSurfaceGuard() {
++    }
++
++    /**
++     * 守卫并暴露 Map：strict 模式下返回带检测的视图，否则返回标准不可变视图
++     */
++    public static <K, V> Map<K, V> guardMap(
++        Map<K, V> internal,
++        Logger logger,
++        String site
++    ) {
++        Map<K, V> view = CompatViews.expose(internal);
++        if (!STRICT) {
++            return view;
++        }
++        return new GuardedMapView<>(view, logger, site);
++    }
++
++    /**
++     * 守卫并暴露 Collection
++     */
++    public static <E> Collection<E> guardCollection(
++        Collection<E> internal,
++        Logger logger,
++        String site
++    ) {
++        Collection<E> view = CompatViews.expose(internal);
++        if (!STRICT) {
++            return view;
++        }
++        return new GuardedCollectionView<>(view, logger, site);
++    }
++
++    /**
++     * 累计的结构性违规尝试次数
++     */
++    public static long violationCount() {
++        return VIOLATIONS.get();
++    }
++
++    static boolean isStrict() {
++        return STRICT;
++    }
++
++    static void record(Logger logger, String site) {
++        VIOLATIONS.incrementAndGet();
++        logger.warn("Leviathan collection guard: external mutation attempted at {}", site,
++            new IllegalStateException("guard trace"));
++    }
++
++    private static final class GuardedCollectionView<E> implements Collection<E> {
++        private final Collection<E> delegate;
++        private final Logger logger;
++        private final String site;
++
++        GuardedCollectionView(Collection<E> delegate, Logger logger, String site) {
++            this.delegate = delegate;
++            this.logger = logger;
++            this.site = site;
++        }
++
++        @Override
++        public int size() {
++            return delegate.size();
++        }
++
++        @Override
++        public boolean isEmpty() {
++            return delegate.isEmpty();
++        }
++
++        @Override
++        public boolean contains(Object o) {
++            return delegate.contains(o);
++        }
++
++        @Override
++        public java.util.Iterator<E> iterator() {
++            return delegate.iterator();
++        }
++
++        @Override
++        public Object[] toArray() {
++            return delegate.toArray();
++        }
++
++        @Override
++        public <T> T[] toArray(T[] a) {
++            return delegate.toArray(a);
++        }
++
++        @Override
++        public boolean add(E e) {
++            record(logger, site);
++            throw new UnsupportedOperationException("guarded surface: " + site);
++        }
++
++        @Override
++        public boolean remove(Object o) {
++            record(logger, site);
++            throw new UnsupportedOperationException("guarded surface: " + site);
++        }
++
++        @Override
++        public boolean containsAll(Collection<?> c) {
++            return delegate.containsAll(c);
++        }
++
++        @Override
++        public boolean addAll(Collection<? extends E> c) {
++            record(logger, site);
++            throw new UnsupportedOperationException("guarded surface: " + site);
++        }
++
++        @Override
++        public boolean removeAll(Collection<?> c) {
++            record(logger, site);
++            throw new UnsupportedOperationException("guarded surface: " + site);
++        }
++
++        @Override
++        public boolean retainAll(Collection<?> c) {
++            record(logger, site);
++            throw new UnsupportedOperationException("guarded surface: " + site);
++        }
++
++        @Override
++        public void clear() {
++            record(logger, site);
++            throw new UnsupportedOperationException("guarded surface: " + site);
++        }
++    }
++
++    private static final class GuardedMapView<K, V> implements Map<K, V> {
++        private final Map<K, V> delegate;
++        private final Logger logger;
++        private final String site;
++
++        GuardedMapView(Map<K, V> delegate, Logger logger, String site) {
++            this.delegate = delegate;
++            this.logger = logger;
++            this.site = site;
++        }
++
++        @Override
++        public int size() {
++            return delegate.size();
++        }
++
++        @Override
++        public boolean isEmpty() {
++            return delegate.isEmpty();
++        }
++
++        @Override
++        public boolean containsKey(Object key) {
++            return delegate.containsKey(key);
++        }
++
++        @Override
++        public boolean containsValue(Object value) {
++            return delegate.containsValue(value);
++        }
++
++        @Override
++        public V get(Object key) {
++            return delegate.get(key);
++        }
++
++        @Override
++        public V put(K key, V value) {
++            record(logger, site);
++            throw new UnsupportedOperationException("guarded surface: " + site);
++        }
++
++        @Override
++        public V remove(Object key) {
++            record(logger, site);
++            throw new UnsupportedOperationException("guarded surface: " + site);
++        }
++
++        @Override
++        public void putAll(Map<? extends K, ? extends V> m) {
++            record(logger, site);
++            throw new UnsupportedOperationException("guarded surface: " + site);
++        }
++
++        @Override
++        public void clear() {
++            record(logger, site);
++            throw new UnsupportedOperationException("guarded surface: " + site);
++        }
++
++        @Override
++        public Set<K> keySet() {
++            return delegate.keySet();
++        }
++
++        @Override
++        public Collection<V> values() {
++            return delegate.values();
++        }
++
++        @Override
++        public Set<Map.Entry<K, V>> entrySet() {
++            return delegate.entrySet();
++        }
++    }
++
++    /**
++     * 供诊断日志读取当前模式
++     */
++    public static String describeMode() {
++        return STRICT ? "strict" : "off";
++    }
++
++    /**
++     * 保留 List 出口说明（List 边界由 IntIdentityList 承接）
++     */
++    public static List<String> supportedSurfaces() {
++        return List.of("Map", "Collection", "List(IntIdentityList)");
++    }
++}
+\ No newline at end of file
+-- 
+2.54.0.windows.1
+

@@ -1,0 +1,107 @@
+From d94692fa4c64aacab9476eca6d11c39e9d248cba Mon Sep 17 00:00:00 2001
+From: Leviathan <leviathan@vospek.dev>
+Date: Sat, 22 Aug 2026 12:22:32 +0800
+Subject: [PATCH] W1-03 Fastutil: swap rule registry
+
+Declarative registry of approved collection swaps with risk classes
+(INTERNAL_ONLY / ORDER_SENSITIVE / API_BOUNDARY). Future NMS call-site
+patches may only execute registered rules and must attach benchmark
+data. Includes curated initial rules + pending items requiring
+mc-dev-sources.
+---
+ .../leviathan/collection/SwapRegistry.java    | 82 +++++++++++++++++++
+ 1 file changed, 82 insertions(+)
+ create mode 100644 src/main/java/dev/vospek/leviathan/collection/SwapRegistry.java
+
+diff --git a/src/main/java/dev/vospek/leviathan/collection/SwapRegistry.java b/src/main/java/dev/vospek/leviathan/collection/SwapRegistry.java
+new file mode 100644
+index 0000000..bf2ba16
+--- /dev/null
++++ b/src/main/java/dev/vospek/leviathan/collection/SwapRegistry.java
+@@ -0,0 +1,82 @@
++package dev.vospek.leviathan.collection;
++
++import java.util.ArrayList;
++import java.util.List;
++
++/**
++ * W1-03 (patch 0017): 集合替换规则注册表
++ * <p>
++ * 所有"内部集合 → fastutil"的替换必须先在此登记：
++ * 目标 NMS 持有者、当前类型、目标类型、风险等级与外部 API 说明。
++ * 后续 NMS 调用点 patch（需 applyPatches 环境）只能执行登记过的规则，
++ * 并在 patch body 附带对应 {@code MapSwapBenchmark} 数据。
++ */
++public final class SwapRegistry {
++
++    /**
++     * 替换风险等级
++     */
++    public enum Risk {
++        /** 纯内部，无任何 API/子类可见性 */
++        INTERNAL_ONLY,
++        /** 有子类或同包读取，需保持迭代顺序语义 */
++        ORDER_SENSITIVE,
++        /** 跨越 Bukkit API 边界，必须经 CompatViews.expose */
++        API_BOUNDARY
++    }
++
++    /**
++     * 一条已登记的替换规则
++     */
++    public record SwapRule(
++        String nmsOwner,
++        String currentType,
++        String targetType,
++        Risk risk,
++        String note
++    ) {
++    }
++
++    private static final List<SwapRule> RULES = List.of(
++        new SwapRule("net.minecraft.world.entity.EntitySelector", "java.util.ArrayList",
++            "it.unimi.dsi.fastutil.objects.ObjectArrayList", Risk.INTERNAL_ONLY,
++            "predicate 组合列表，纯内部构建"),
++        new SwapRule("net.minecraft.server.level.ChunkMap", "Long2ObjectOpenHashMap",
++            "保持现状", Risk.INTERNAL_ONLY, "MC 已使用 fastutil，无需替换"),
++        new SwapRule("net.minecraft.world.level.pathfinder.PathFinder", "java.util.Set",
++            "it.unimi.dsi.fastutil.objects.ObjectOpenHashSet", Risk.INTERNAL_ONLY,
++            "target 缓存集合；注意 hashCode 语义依赖元素"),
++        new SwapRule("(pending mc-dev-sources) 高频 HashMap<Integer,…> 点位", "java.util.HashMap",
++            "Int2ObjectOpenHashMap + CompatViews.expose", Risk.API_BOUNDARY,
++            "待 applyPatches 后按 SwapRegistry 逐点登记落地"),
++        new SwapRule("(pending mc-dev-sources) 高频 ArrayList<Integer> 点位", "java.util.ArrayList",
++            "IntIdentityList", Risk.API_BOUNDARY, "待逐点确认无 Arrays.asList 外泄")
++    );
++
++    /**
++     * 全部已登记规则（只读）
++     */
++    public static List<SwapRule> rules() {
++        return RULES;
++    }
++
++    /**
++     * 按风险等级过滤
++     */
++    public static List<SwapRule> byRisk(Risk risk) {
++        List<SwapRule> out = new ArrayList<>();
++        for (SwapRule rule : RULES) {
++            if (rule.risk() == risk) {
++                out.add(rule);
++            }
++        }
++        return out;
++    }
++
++    /**
++     * 待 mc-dev-sources 的挂起项数量（报告用）
++     */
++    public static long pendingCount() {
++        return RULES.stream().filter(r -> r.nmsOwner().startsWith("(pending")).count();
++    }
++}
+\ No newline at end of file
+-- 
+2.54.0.windows.1
+

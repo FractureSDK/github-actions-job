@@ -1,0 +1,62 @@
+From 8b0de8497b4a65c90914e6c34fc9c817644f697c Mon Sep 17 00:00:00 2001
+From: Leviathan <leviathan@vospek.dev>
+Date: Sat, 22 Aug 2026 12:22:35 +0800
+Subject: [PATCH] W1-03 Fastutil: tuning report
+
+Startup report aggregating contract check result, gate lines and
+api-boundary registry entries; same shape as ZgcTuningReport /
+ObjectPathTuningReport.
+---
+ .../collection/FastutilTuningReport.java      | 39 +++++++++++++++++++
+ 1 file changed, 39 insertions(+)
+ create mode 100644 src/main/java/dev/vospek/leviathan/collection/FastutilTuningReport.java
+
+diff --git a/src/main/java/dev/vospek/leviathan/collection/FastutilTuningReport.java b/src/main/java/dev/vospek/leviathan/collection/FastutilTuningReport.java
+new file mode 100644
+index 0000000..4cbf7c2
+--- /dev/null
++++ b/src/main/java/dev/vospek/leviathan/collection/FastutilTuningReport.java
+@@ -0,0 +1,39 @@
++package dev.vospek.leviathan.collection;
++
++import org.apache.logging.log4j.Logger;
++
++/**
++ * W1-03 (patch 0020): Fastutil 阶段调优报告
++ * <p>
++ * 启动时输出一次本阶段状态：契约自检结果、守卫模式、注册表进度、
++ * 挂起的 NMS 替换点位。与 ZgcTuningReport/ObjectPathTuningReport 同构。
++ */
++public final class FastutilTuningReport {
++
++    private final FastutilStageBenchmark benchmark = new FastutilStageBenchmark();
++
++    /**
++     * 输出报告行；contractCheck=true 时先执行契约自检（失败抛出）
++     */
++    public void logReport(Logger logger, int ops, boolean contractCheck) {
++        logger.info("━━━ Leviathan Fastutil Tuning Report ━━━");
++        if (contractCheck) {
++            CompatContractCheck.checkAll();
++            logger.info("external contract check: OK");
++        }
++        for (String line : benchmark.gateLines(ops, ops)) {
++            logger.info("{}", line);
++        }
++        for (SwapRegistry.SwapRule rule : SwapRegistry.byRisk(SwapRegistry.Risk.API_BOUNDARY)) {
++            logger.info("api-boundary rule: {} -> {} [{}]",
++                rule.currentType(), rule.targetType(), rule.nmsOwner());
++        }
++    }
++
++    /**
++     * 报告组件访问器（命令/诊断复用）
++     */
++    public FastutilStageBenchmark benchmark() {
++        return benchmark;
++    }
++}
+\ No newline at end of file
+-- 
+2.54.0.windows.1
+

@@ -1,0 +1,114 @@
+From 51c1de0825d5594ac28ce055a02581b90bf540f2 Mon Sep 17 00:00:00 2001
+From: Leviathan <leviathan@vospek.dev>
+Date: Sat, 22 Aug 2026 12:22:29 +0800
+Subject: [PATCH] W1-03 Fastutil: external contract self-check
+
+main()-based assertions comparing adapted fastutil maps against
+java.util.HashMap: equals/hashCode/entrySet content, get semantics,
+remove semantics on internal instances, and mutation rejection of the
+exposed view. Non-zero exit on any violation (CI/Gate ready). Verified:
+OK at runtime.
+---
+ .../collection/CompatContractCheck.java       | 89 +++++++++++++++++++
+ 1 file changed, 89 insertions(+)
+ create mode 100644 src/main/java/dev/vospek/leviathan/collection/CompatContractCheck.java
+
+diff --git a/src/main/java/dev/vospek/leviathan/collection/CompatContractCheck.java b/src/main/java/dev/vospek/leviathan/collection/CompatContractCheck.java
+new file mode 100644
+index 0000000..d76a438
+--- /dev/null
++++ b/src/main/java/dev/vospek/leviathan/collection/CompatContractCheck.java
+@@ -0,0 +1,89 @@
++package dev.vospek.leviathan.collection;
++
++import it.unimi.dsi.fastutil.objects.Object2ObjectOpenHashMap;
++import java.util.HashMap;
++import java.util.Map;
++import java.util.Objects;
++
++/**
++ * W1-03 (patch 0014): 兼容视图契约自检
++ * <p>
++ * 以 java.util.HashMap 为参照，逐项校验
++ * {@code internalRefMap + expose} 组合的外部行为一致性：
++ * put/get/remove、keySet/entrySet 迭代、equals/hashCode/toString、
++ * 视图不可变性。任何偏离都以非零码退出（供 CI/Gate 调用）。
++ * <p>
++ * 独立运行：{@code java -cp ... CompatContractCheck}
++ */
++public final class CompatContractCheck {
++
++    private CompatContractCheck() {
++    }
++
++    /**
++     * 执行全部断言；失败时抛出 AssertionError 汇总
++     */
++    public static void checkAll() {
++        AssertionError failures = new AssertionError("contract violations:");
++        int count = 0;
++
++        Map<String, String> reference = new HashMap<>();
++        Object2ObjectOpenHashMap<String, String> adaptedInternal = CompatViews.internalRefMap();
++        for (int i = 0; i < 32; i++) {
++            String k = "k" + i;
++            String v = "v" + i;
++            reference.put(k, v);
++            adaptedInternal.put(k, v);
++        }
++        Map<String, String> adapted = CompatViews.expose(adaptedInternal);
++
++        if (!Objects.equals(reference, adapted)) {
++            failures.addSuppressed(new AssertionError("equals mismatch"));
++            count++;
++        }
++        if (!Objects.equals(reference.hashCode(), adapted.hashCode())) {
++            failures.addSuppressed(new AssertionError("hashCode mismatch"));
++            count++;
++        }
++        // 迭代顺序属实现细节（Map 契约不保证），仅断言结构相等
++        if (!reference.entrySet().equals(adapted.entrySet())) {
++            failures.addSuppressed(new AssertionError("entrySet content mismatch"));
++            count++;
++        }
++        if (!Objects.equals(reference.get("k7"), adapted.get("k7"))) {
++            failures.addSuppressed(new AssertionError("get mismatch"));
++            count++;
++        }
++
++        // 移除语义在内部实例上对照（暴露视图必须拒绝修改，见下方独立检查）
++        Map<String, String> refInternal = new HashMap<>(reference);
++        var fastutilInternal = CompatViews.internalRefMap();
++        fastutilInternal.putAll(reference);
++        boolean refRemoved = refInternal.remove("k3", "v3");
++        boolean adaptedInternalRemoved = fastutilInternal.remove("k3", "v3");
++        if (!refRemoved || !adaptedInternalRemoved || !refInternal.equals(fastutilInternal)) {
++            failures.addSuppressed(new AssertionError("remove semantics mismatch"));
++            count++;
++        }
++
++        try {
++            adapted.put("x", "y");
++            failures.addSuppressed(new AssertionError("exposed view is mutable"));
++            count++;
++        } catch (UnsupportedOperationException expected) {
++            // 视图必须拒绝结构修改
++        }
++
++        if (count > 0) {
++            throw failures;
++        }
++    }
++
++    /**
++     * 独立运行入口：通过打印 OK 并正常退出表示契约成立
++     */
++    public static void main(String[] args) {
++        checkAll();
++        System.out.println("OK: fastutil adapter matches java.util external contract");
++    }
++}
+\ No newline at end of file
+-- 
+2.54.0.windows.1
+

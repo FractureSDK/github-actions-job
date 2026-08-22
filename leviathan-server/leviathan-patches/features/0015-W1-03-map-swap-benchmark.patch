@@ -1,0 +1,143 @@
+From a5b8ac0278b2d441bfe8c256e790b84cb9e27cc9 Mon Sep 17 00:00:00 2001
+From: Leviathan <leviathan@vospek.dev>
+Date: Sat, 22 Aug 2026 12:22:30 +0800
+Subject: [PATCH] W1-03 Fastutil: map swap benchmark
+
+Integer-key workload across hashmap (boxed baseline) / adapted view /
+primitive direct forms; records allocation rate and GC pause deltas so
+each future NMS swap site can cite measured numbers (Gate rule).
+---
+ .../collection/MapSwapBenchmark.java          | 120 ++++++++++++++++++
+ 1 file changed, 120 insertions(+)
+ create mode 100644 src/main/java/dev/vospek/leviathan/collection/MapSwapBenchmark.java
+
+diff --git a/src/main/java/dev/vospek/leviathan/collection/MapSwapBenchmark.java b/src/main/java/dev/vospek/leviathan/collection/MapSwapBenchmark.java
+new file mode 100644
+index 0000000..2d89ca0
+--- /dev/null
++++ b/src/main/java/dev/vospek/leviathan/collection/MapSwapBenchmark.java
+@@ -0,0 +1,120 @@
++package dev.vospek.leviathan.collection;
++
++import dev.vospek.leviathan.jvm.ZgcMetrics;
++import it.unimi.dsi.fastutil.ints.Int2ObjectOpenHashMap;
++import java.util.HashMap;
++import java.util.Locale;
++import java.util.Map;
++
++/**
++ * W1-03 (patch 0015): Map 键控替换基准
++ * <p>
++ * Integer 键工作负载的三种形态对照：
++ * <ol>
++ *   <li>java.util.HashMap（装箱键，现状基线）</li>
++ *   <li>fastutil Int2ObjectOpenHashMap + expose 视图（跨界路径）</li>
++ *   <li>fastutil Int2ObjectOpenHashMap 直用（纯内部路径）</li>
++ * </ol>
++ * 结论用于判定：哪些调用点可以无税替换（2），哪些必须保持内部化（3）。
++ */
++public final class MapSwapBenchmark {
++
++    private final ZgcMetrics metrics = new ZgcMetrics();
++
++    /**
++     * 基准结果
++     */
++    public record Result(
++        String mode,
++        double allocRateBytesPerSec,
++        long gcTimeMsDelta,
++        long elapsedMs
++    ) {
++    }
++
++    record Payload(long pad0, long pad1, long pad2) {
++    }
++
++    /**
++     * @param ops   put+get 次数
++     * @param mode  "hashmap" | "adapted" | "primitive"
++     */
++    public Result run(int ops, String mode) {
++        metrics.allocationRateBytesPerSec();
++        long startNanos = System.nanoTime();
++        long gcTimeBefore = metrics.totalCollectionTimeMs();
++
++        switch (mode) {
++            case "hashmap" -> {
++                Map<Integer, Payload> map = new HashMap<>();
++                for (int i = 0; i < ops; i++) {
++                    map.put(i, new Payload(i, i, i));
++                }
++                long sink = 0L;
++                for (int i = 0; i < ops; i++) {
++                    Payload p = map.get(i);
++                    sink += p.pad0;
++                }
++                if (sink == Long.MIN_VALUE) {
++                    throw new IllegalStateException();
++                }
++            }
++            case "adapted" -> {
++                Int2ObjectOpenHashMap<Payload> internal = CompatViews.internalIntKeyMap();
++                Map<Integer, Payload> exposed = CompatViews.expose(internal);
++                for (int i = 0; i < ops; i++) {
++                    internal.put(i, new Payload(i, i, i));
++                }
++                long sink = 0L;
++                for (int i = 0; i < ops; i++) {
++                    Payload p = exposed.get(i);
++                    sink += p.pad0;
++                }
++                if (sink == Long.MIN_VALUE) {
++                    throw new IllegalStateException();
++                }
++            }
++            default -> {
++                Int2ObjectOpenHashMap<Payload> direct = new Int2ObjectOpenHashMap<>();
++                for (int i = 0; i < ops; i++) {
++                    direct.put(i, new Payload(i, i, i));
++                }
++                long sink = 0L;
++                for (int i = 0; i < ops; i++) {
++                    Payload p = direct.get(i);
++                    sink += p.pad0;
++                }
++                if (sink == Long.MIN_VALUE) {
++                    throw new IllegalStateException();
++                }
++            }
++        }
++
++        double allocRate = metrics.allocationRateBytesPerSec();
++        long endNanos = System.nanoTime();
++        return new Result(
++            mode,
++            allocRate,
++            Math.max(0L, metrics.totalCollectionTimeMs() - gcTimeBefore),
++            (endNanos - startNanos) / 1_000_000L
++        );
++    }
++
++    /**
++     * 三模式对照行（Wave Gate 记录用）
++     */
++    public String compareLine(int ops) {
++        StringBuilder sb = new StringBuilder("map swap: ");
++        for (String mode : new String[] {"hashmap", "adapted", "primitive"}) {
++            Result r = run(ops, mode);
++            sb.append(String.format(Locale.ROOT, "%s=%.1fMB/s/%dms ",
++                r.mode(), r.allocRateBytesPerSec() / (1024.0 * 1024), r.gcTimeMsDelta()));
++        }
++        return sb.toString().trim();
++    }
++
++    public static void main(String[] args) {
++        int ops = args != null && args.length > 0 ? Integer.parseInt(args[0]) : 2_000_000;
++        System.out.println(new MapSwapBenchmark().compareLine(ops));
++    }
++}
+\ No newline at end of file
+-- 
+2.54.0.windows.1
+

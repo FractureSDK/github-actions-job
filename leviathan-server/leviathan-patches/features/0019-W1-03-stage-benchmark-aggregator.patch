@@ -1,0 +1,89 @@
+From 8f41f4504e527426cdc2f785fece97b620841459 Mon Sep 17 00:00:00 2001
+From: Leviathan <leviathan@vospek.dev>
+Date: Sat, 22 Aug 2026 12:22:34 +0800
+Subject: [PATCH] W1-03 Fastutil: stage benchmark aggregator
+
+Wave Gate lines: map swap comparison, boxed-vs-primitive List append,
+registry progress and guard status in one run.
+---
+ .../collection/FastutilStageBenchmark.java    | 67 +++++++++++++++++++
+ 1 file changed, 67 insertions(+)
+ create mode 100644 src/main/java/dev/vospek/leviathan/collection/FastutilStageBenchmark.java
+
+diff --git a/src/main/java/dev/vospek/leviathan/collection/FastutilStageBenchmark.java b/src/main/java/dev/vospek/leviathan/collection/FastutilStageBenchmark.java
+new file mode 100644
+index 0000000..d3b550e
+--- /dev/null
++++ b/src/main/java/dev/vospek/leviathan/collection/FastutilStageBenchmark.java
+@@ -0,0 +1,67 @@
++package dev.vospek.leviathan.collection;
++
++import java.util.Locale;
++
++/**
++ * W1-03 (patch 0019): Fastutil 阶段汇总基准
++ * <p>
++ * 聚合 {@link MapSwapBenchmark} 与 IntIdentityList 的装箱对照，
++ * 输出 Wave Gate 记录行；并给出与 W1-01/W1-02 相同格式的迁移清单。
++ */
++public final class FastutilStageBenchmark {
++
++    private final MapSwapBenchmark mapBenchmark = new MapSwapBenchmark();
++
++    /**
++     * List&lt;Integer&gt; 装箱追加 vs IntIdentityList 原生追加的耗时对照行
++     */
++    public String listCompareLine(int count) {
++        java.util.ArrayList<Integer> boxed = new java.util.ArrayList<>(count);
++        IntIdentityList nativeList = new IntIdentityList(count);
++
++        long t0 = System.nanoTime();
++        for (int i = 0; i < count; i++) {
++            boxed.add(i);
++        }
++        long boxedMs = (System.nanoTime() - t0) / 1_000_000L;
++
++        t0 = System.nanoTime();
++        for (int i = 0; i < count; i++) {
++            nativeList.addInt(i);
++        }
++        long nativeMs = (System.nanoTime() - t0) / 1_000_000L;
++
++        return String.format(Locale.ROOT,
++            "list<Integer> append %d: boxed=%dms primitive=%dms", count, boxedMs, nativeMs);
++    }
++
++    /**
++     * 三模式 Map 对照行（透传）
++     */
++    public String mapCompareLine(int ops) {
++        return mapBenchmark.compareLine(ops);
++    }
++
++    /**
++     * Wave Gate 摘要（多行）
++     */
++    public String[] gateLines(int ops, int listCount) {
++        return new String[] {
++            "━━━ Leviathan Fastutil Stage Report ━━━",
++            mapCompareLine(ops),
++            listCompareLine(listCount),
++            "registry rules=" + SwapRegistry.rules().size()
++                + " pending(mc-dev-sources)=" + SwapRegistry.pendingCount(),
++            "guard mode=" + PluginSurfaceGuard.describeMode()
++                + " violations=" + PluginSurfaceGuard.violationCount(),
++        };
++    }
++
++    public static void main(String[] args) {
++        int ops = args != null && args.length > 0 ? Integer.parseInt(args[0]) : 1_000_000;
++        FastutilStageBenchmark bench = new FastutilStageBenchmark();
++        for (String line : bench.gateLines(ops, ops)) {
++            System.out.println(line);
++        }
++    }
++}
+\ No newline at end of file
+-- 
+2.54.0.windows.1
+

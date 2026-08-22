@@ -1,0 +1,101 @@
+From f3e3be1e19be94116649f9bf96659adb951cf28e Mon Sep 17 00:00:00 2001
+From: Leviathan <leviathan@vospek.dev>
+Date: Sat, 22 Aug 2026 12:22:28 +0800
+Subject: [PATCH] W1-03 Fastutil: compat view layer
+
+Single sanctioned exit point for fastutil instances: internal paths keep
+native Int2Object/Object2Object maps zero-cost, while anything crossing
+toward Bukkit/Paper visibility goes through standard unmodifiable views
+so equals/hashCode/entrySet follow java.util contracts.
+---
+ .../leviathan/collection/CompatViews.java     | 77 +++++++++++++++++++
+ 1 file changed, 77 insertions(+)
+ create mode 100644 src/main/java/dev/vospek/leviathan/collection/CompatViews.java
+
+diff --git a/src/main/java/dev/vospek/leviathan/collection/CompatViews.java b/src/main/java/dev/vospek/leviathan/collection/CompatViews.java
+new file mode 100644
+index 0000000..916ba25
+--- /dev/null
++++ b/src/main/java/dev/vospek/leviathan/collection/CompatViews.java
+@@ -0,0 +1,77 @@
++package dev.vospek.leviathan.collection;
++
++import it.unimi.dsi.fastutil.ints.Int2ObjectOpenHashMap;
++import it.unimi.dsi.fastutil.objects.Object2ObjectOpenHashMap;
++import it.unimi.dsi.fastutil.objects.ObjectOpenHashSet;
++import java.util.Collection;
++import java.util.Collections;
++import java.util.Map;
++import java.util.Set;
++
++/**
++ * W1-03 (patch 0013): fastutil 内部集合的兼容视图层
++ * <p>
++ * 风险链（P1.md W1-03）：内部集合 → Bukkit API → 插件。
++ * 本类是唯一允许 fastutil 实例跨越内部边界的出口：
++ * <ul>
++ *   <li>对外只暴露 {@link Collections#unmodifiableMap} 等标准视图，
++ *       保证 equals/hashCode/toString 遵循 java.util 契约</li>
++ *   <li>内部路径直接持有 fastutil 原生实例，零装箱/零包装开销</li>
++ * </ul>
++ * 规则：插件可见的一律走 {@code expose*}；纯内部使用禁止包装。
++ */
++public final class CompatViews {
++
++    private CompatViews() {
++    }
++
++    /**
++     * 创建 int 键优化的内部 Map（无外部视图）
++     */
++    public static <V> Int2ObjectOpenHashMap<V> internalIntKeyMap() {
++        return new Int2ObjectOpenHashMap<>();
++    }
++
++    /**
++     * 创建引用键优化的内部 Map（语义同 HashMap：equals/hashCode 委托元素）
++     */
++    public static <K, V> Object2ObjectOpenHashMap<K, V> internalRefMap() {
++        return new Object2ObjectOpenHashMap<>();
++    }
++
++    /**
++     * 创建引用优化的内部 Set
++     */
++    public static <E> ObjectOpenHashSet<E> internalRefSet() {
++        return new ObjectOpenHashSet<>();
++    }
++
++    /**
++     * 以不可变标准视图暴露内部 Map（插件安全入口）
++     */
++    public static <K, V> Map<K, V> expose(Map<K, V> internal) {
++        return Collections.unmodifiableMap(internal);
++    }
++
++    /**
++     * 以不可变标准视图暴露内部 Set
++     */
++    public static <E> Set<E> expose(Set<E> internal) {
++        return Collections.unmodifiableSet(internal);
++    }
++
++    /**
++     * 以不可变标准视图暴露内部 Collection
++     */
++    public static <E> Collection<E> expose(Collection<E> internal) {
++        return Collections.unmodifiableCollection(internal);
++    }
++
++    /**
++     * 快照拷贝：调用方需要长期持有或跨线程读取时使用，
++     * 避免 fastutil 内部 rehash 造成的弱一致迭代问题
++     */
++    public static <K, V> Map<K, V> snapshotOf(Map<K, V> internal) {
++        return Map.copyOf(internal);
++    }
++}
+\ No newline at end of file
+-- 
+2.54.0.windows.1
+

@@ -1,0 +1,131 @@
+From e1698b2099ca5f1828d52d3e67d659498663f785 Mon Sep 17 00:00:00 2001
+From: Leviathan <leviathan@vospek.dev>
+Date: Sat, 22 Aug 2026 12:22:31 +0800
+Subject: [PATCH] W1-03 Fastutil: int-native List<Integer>
+
+Drop-in List<Integer> backed by int[] with native addInt/getInt paths
+for internal use; full AbstractList/RandomAccess external semantics.
+---
+ .../leviathan/collection/IntIdentityList.java | 109 ++++++++++++++++++
+ 1 file changed, 109 insertions(+)
+ create mode 100644 src/main/java/dev/vospek/leviathan/collection/IntIdentityList.java
+
+diff --git a/src/main/java/dev/vospek/leviathan/collection/IntIdentityList.java b/src/main/java/dev/vospek/leviathan/collection/IntIdentityList.java
+new file mode 100644
+index 0000000..aaabb0c
+--- /dev/null
++++ b/src/main/java/dev/vospek/leviathan/collection/IntIdentityList.java
+@@ -0,0 +1,109 @@
++package dev.vospek.leviathan.collection;
++
++import java.util.AbstractList;
++import java.util.Arrays;
++import java.util.List;
++import java.util.RandomAccess;
++
++/**
++ * W1-03 (patch 0016): int 原生存储的 List&lt;Integer&gt; 兼容实现
++ * <p>
++ * 外部完整实现 {@link List}（含 equals/hashCode/toString 与
++ * RandomAccess 语义，行为同 ArrayList），内部以 int[] 存储，
++ * 消除实体 id 等高频整型列表的装箱开销。
++ * <p>
++ * 迁移目标：NMS 中以 List&lt;Integer&gt;/int[] 双形态出现的 id 集合。
++ */
++public final class IntIdentityList extends AbstractList<Integer> implements RandomAccess {
++
++    private int[] data;
++    private int size;
++
++    public IntIdentityList() {
++        this(8);
++    }
++
++    public IntIdentityList(int initialCapacity) {
++        this.data = new int[Math.max(1, initialCapacity)];
++    }
++
++    /**
++     * 以既有集合构建（一次性装箱导入）
++     */
++    public static IntIdentityList of(List<Integer> source) {
++        IntIdentityList list = new IntIdentityList(source.size());
++        for (Integer value : source) {
++            list.add(value);
++        }
++        return list;
++    }
++
++    @Override
++    public int size() {
++        return size;
++    }
++
++    @Override
++    public Integer get(int index) {
++        checkIndex(index);
++        return data[index];
++    }
++
++    @Override
++    public Integer set(int index, Integer element) {
++        checkIndex(index);
++        Integer old = data[index];
++        data[index] = element;
++        return old;
++    }
++
++    @Override
++    public void add(int index, Integer element) {
++        if (index < 0 || index > size) {
++            throw new IndexOutOfBoundsException("index " + index + " size " + size);
++        }
++        ensureCapacity(size + 1);
++        System.arraycopy(data, index, data, index + 1, size - index);
++        data[index] = element;
++        size++;
++    }
++
++    @Override
++    public Integer remove(int index) {
++        checkIndex(index);
++        Integer old = data[index];
++        System.arraycopy(data, index + 1, data, index, size - index - 1);
++        size--;
++        data[size] = 0;
++        return old;
++    }
++
++    /**
++     * 原生追加路径（内部使用，避免装箱）
++     */
++    public void addInt(int value) {
++        ensureCapacity(size + 1);
++        data[size++] = value;
++    }
++
++    /**
++     * 原生读取路径（内部使用，避免拆箱）
++     */
++    public int getInt(int index) {
++        checkIndex(index);
++        return data[index];
++    }
++
++    private void ensureCapacity(int required) {
++        if (required <= data.length) {
++            return;
++        }
++        data = Arrays.copyOf(data, Math.max(data.length * 2, required));
++    }
++
++    private void checkIndex(int index) {
++        if (index >= size) {
++            throw new IndexOutOfBoundsException("index " + index + " size " + size);
++        }
++    }
++}
+\ No newline at end of file
+-- 
+2.54.0.windows.1
+
