@@ -65,7 +65,9 @@ public final class StorageMetrics {
 
     public long isLinearActive() {
         EnumRegionFormat format = RegionFormatConfig.regionFormat;
-        return format == EnumRegionFormat.LINEAR_V2 || format == EnumRegionFormat.B_LINEAR ? 1L : 0L;
+        boolean linear = format == EnumRegionFormat.LINEAR_V2
+            || format == EnumRegionFormat.B_LINEAR;
+        return linear ? 1L : 0L;
     }
 
     public int getCompressionLevel() {

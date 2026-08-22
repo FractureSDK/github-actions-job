@@ -1,8 +1,5 @@
 package dev.vospek.leviathan.bootstrap;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
-
 import java.io.BufferedReader;
 import java.io.File;
 import java.io.FileReader;
@@ -14,6 +11,8 @@ import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 
 /**
  * 硬件能力探测器 - 检测 CPU/SIMD/内存/OS 等硬件特性
@@ -79,7 +78,8 @@ public final class HardwareCapabilities {
         } else {
             // 非 Linux 环境回退
             caps.physicalProcessors = caps.logicalProcessors;
-            caps.cpuVendor = System.getProperty("os.arch").toLowerCase(Locale.ROOT).contains("x86") ? "x86" : "unknown";
+            String arch = System.getProperty("os.arch").toLowerCase(Locale.ROOT);
+            caps.cpuVendor = arch.contains("x86") ? "x86" : "unknown";
             caps.cpuModel = System.getProperty("os.arch");
             caps.cpuFlags = List.of();
             // 基础 SIMD 假设
@@ -138,7 +138,8 @@ public final class HardwareCapabilities {
             }
 
             // 解析 SIMD 标志
-            caps.hasSIMD = caps.cpuFlags.stream().anyMatch(f -> f.equals("sse") || f.equals("sse2"));
+            caps.hasSIMD = caps.cpuFlags.stream()
+                .anyMatch(f -> f.equals("sse") || f.equals("sse2"));
             caps.hasAVX2 = caps.cpuFlags.contains("avx2");
             caps.hasAVX512 = caps.cpuFlags.stream().anyMatch(f -> f.startsWith("avx512"));
 
@@ -320,21 +321,32 @@ public final class HardwareCapabilities {
         LOGGER.info("SIMD Support:      {}", caps.hasSIMD ? "yes" : "no");
         LOGGER.info("AVX2 Support:      {}", caps.hasAVX2 ? "yes" : "no");
         LOGGER.info("AVX-512 Support:   {}", caps.hasAVX512 ? "yes" : "no");
-        LOGGER.info("CPU Flags:         {}", caps.cpuFlags != null ? caps.cpuFlags.size() + " flags" : "unavailable");
-        LOGGER.info("Physical Memory:   {}", caps.physicalMemoryBytes > 0 ? formatBytes(caps.physicalMemoryBytes) : "unknown");
+        LOGGER.info("CPU Flags:         {}",
+            caps.cpuFlags != null ? caps.cpuFlags.size() + " flags" : "unavailable");
+        LOGGER.info("Physical Memory:   {}",
+            caps.physicalMemoryBytes > 0 ? formatBytes(caps.physicalMemoryBytes) : "unknown");
         LOGGER.info("Max Heap:          {}", formatBytes(caps.maxHeapBytes));
         LOGGER.info("Direct Memory:     {}", formatBytes(caps.directMemoryBytes));
-        LOGGER.info("OS:                {}", caps.isLinux ? "Linux (" + caps.linuxDistro + ")" : System.getProperty("os.name"));
+        LOGGER.info("OS:                {}",
+            caps.isLinux ? "Linux (" + caps.linuxDistro + ")" : System.getProperty("os.name"));
         LOGGER.info("Kernel:            {}", caps.kernelVersion);
         LOGGER.info("Filesystem:        {}", caps.filesystemType);
         LOGGER.info("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
     }
 
     private static String formatBytes(long bytes) {
-        if (bytes < 0) return "unknown";
-        if (bytes >= 1024L * 1024 * 1024) return String.format(Locale.ROOT, "%.2f GB", bytes / (1024.0 * 1024 * 1024));
-        if (bytes >= 1024 * 1024) return String.format(Locale.ROOT, "%.2f MB", bytes / (1024.0 * 1024));
-        if (bytes >= 1024) return String.format(Locale.ROOT, "%.2f KB", bytes / 1024.0);
+        if (bytes < 0) {
+            return "unknown";
+        }
+        if (bytes >= 1024L * 1024 * 1024) {
+            return String.format(Locale.ROOT, "%.2f GB", bytes / (1024.0 * 1024 * 1024));
+        }
+        if (bytes >= 1024 * 1024) {
+            return String.format(Locale.ROOT, "%.2f MB", bytes / (1024.0 * 1024));
+        }
+        if (bytes >= 1024) {
+            return String.format(Locale.ROOT, "%.2f KB", bytes / 1024.0);
+        }
         return bytes + " B";
     }
 

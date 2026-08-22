@@ -126,3 +126,28 @@
 2. **基准框架**:落实 P0-018~020 后,GC/Network/Entity/Storage 基准即可接入本两轮已注册的 Metric gauges/直方图。
 3. **Phase 1 验收**:由 owner 用现成的 `/leviathan stats`、`/leviathan metrics`、`/leviathan rules`、`/leviathan status`、`/leviathan runtime`、Startup Report 日志收集 Phase 0 baseline 对比数据,生成最终收益报告(可用 write-performance-report skill)。
 4. **Phase 2 入口**:Phase 1 完成并稳定后,按 [08](08-integration-and-acceptance.md) §5 顺序进入 Tier 2(FFM/mmap → SIMD → Async Chunk Gen → Region Tick → Plugin Compat → Folia RegionizedServer 研究)。
+
+## 附录:Phase 0-1 新增源码清单(去重整合)
+
+> 原独立清单文档(含重复行与统计误差)已去重并入本报告;该清单文档随后删除。
+
+| 分组 | 文件(相对 `leviathan-server/src/main/java/dev/vospek/leviathan/`) | 数量 |
+| ---- | ---- | ---- |
+| 可观测性核心(Phase 0) | MetricRegistry、LeviathanLogger、DiagnosticsLogger、TickMetrics、CpuMetrics、ThreadMetrics、MemoryMetrics、ObservabilityBootstrap、package-info | 9 |
+| 引导底座 | bootstrap/HardwareCapabilities、bootstrap/LeviathanBootstrap、bootstrap/RuntimeDetector、bootstrap/package-info | 4 |
+| 配置 | config/modules/misc/CoreConfig | 1 |
+| 命令框架 | command/LeviathanCommands、LeviathanCommand、LeviathanSubcommand、PermissionedLeviathanSubcommand | 4 |
+| 子命令 | subcommands/MSPT、Metrics、Reload、Rules、Runtime、Stats、Status、Version | 8 |
+| Wave 1(JVM/Runtime) | observability/GcMetrics、JitMetrics | 2 |
+| Wave 2(Storage) | observability/StorageMetrics | 1 |
+| Wave 3-4(Network) | observability/NetworkMetrics | 1 |
+| Wave 5(Entity) | observability/EntityMetrics | 1 |
+| Wave 6(Async) | observability/AsyncMetrics | 1 |
+| Wave 7(Controls) | observability/StartupReporter | 1 |
+| **源码合计** | | **33** |
+| Phase 1 文档 | public/ideas/Phase1/00 ~ 10(11 个 md) | 11 |
+
+### 质量基线(2026-08-22 Google Java Style 整合优化)
+
+- 扫描范围:上述 35 个 Java 源文件(observability + command + bootstrap + CoreConfig)。
+- 结果:>100 列 118 处清零;通配符 import 清零;tab 缩进清零;import 统一为「statics 在前 + 单块 ASCII 排序」;单行 if 补齐大括号;删除未用参数(`featureRow.key`)与冗余双组件拼接;桩编译 exit=0。

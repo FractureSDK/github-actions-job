@@ -1,22 +1,28 @@
 package dev.vospek.leviathan.command.subcommands;
 
+import static net.kyori.adventure.text.Component.text;
+import static net.kyori.adventure.text.format.NamedTextColor.AQUA;
+import static net.kyori.adventure.text.format.NamedTextColor.GOLD;
+import static net.kyori.adventure.text.format.NamedTextColor.GRAY;
+import static net.kyori.adventure.text.format.NamedTextColor.GREEN;
+import static net.kyori.adventure.text.format.NamedTextColor.RED;
+import static net.kyori.adventure.text.format.NamedTextColor.YELLOW;
+
+import ca.spottedleaf.common.time.TickData.SegmentData;
 import ca.spottedleaf.common.time.TickData;
-import net.kyori.adventure.text.Component;
-import net.minecraft.server.MinecraftServer;
 import dev.vospek.leviathan.command.LeviathanCommand;
 import dev.vospek.leviathan.command.PermissionedLeviathanSubcommand;
 import dev.vospek.leviathan.config.modules.async.SparklyPaperParallelWorldTicking;
-import org.bukkit.command.CommandSender;
-import org.bukkit.permissions.PermissionDefault;
-
 import java.text.DecimalFormat;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
-
-import static net.kyori.adventure.text.Component.text;
-import static net.kyori.adventure.text.format.NamedTextColor.*;
+import net.kyori.adventure.text.Component;
+import net.minecraft.server.MinecraftServer;
+import net.minecraft.server.level.ServerLevel;
+import org.bukkit.command.CommandSender;
+import org.bukkit.permissions.PermissionDefault;
 
 public final class MSPTCommand extends PermissionedLeviathanSubcommand {
 
@@ -30,11 +36,16 @@ public final class MSPTCommand extends PermissionedLeviathanSubcommand {
     }
 
     @Override
-    public boolean execute(final CommandSender sender, final String subCommand, final String[] args) {
+    public boolean execute(
+        final CommandSender sender,
+        final String subCommand,
+        final String[] args
+    ) {
         // Check if parallel world ticking is enabled
         if (!SparklyPaperParallelWorldTicking.enabled) {
             sender.sendMessage(Component.text()
-                .content("Per-world MSPT tracking is only available when parallel world ticking is enabled.")
+                .content("Per-world MSPT tracking is only available "
+                    + "when parallel world ticking is enabled.")
                 .color(RED)
                 .build());
             sender.sendMessage(Component.text()
@@ -81,17 +92,21 @@ public final class MSPTCommand extends PermissionedLeviathanSubcommand {
         sender.sendMessage(Component.text()
             .content("Server: ")
             .color(GOLD)
-            .append(serverTimes.get(0)).append(SLASH).append(serverTimes.get(1)).append(SLASH).append(serverTimes.get(2))
+            .append(serverTimes.get(0)).append(SLASH)
+            .append(serverTimes.get(1)).append(SLASH)
+            .append(serverTimes.get(2))
             .build());
 
         // Display world stats in compact form
-        for (net.minecraft.server.level.ServerLevel serverLevel : server.getAllLevels()) {
+        for (ServerLevel serverLevel : server.getAllLevels()) {
             List<Component> worldTimes = eval(serverLevel.tickTimes5s.getTimes());
 
             sender.sendMessage(Component.text()
                 .content(serverLevel.getWorld().getName() + ": ")
                 .color(GOLD)
-                .append(worldTimes.get(0)).append(SLASH).append(worldTimes.get(1)).append(SLASH).append(worldTimes.get(2))
+                .append(worldTimes.get(0)).append(SLASH)
+                .append(worldTimes.get(1)).append(SLASH)
+                .append(worldTimes.get(2))
                 .build());
         }
     }
@@ -114,19 +129,25 @@ public final class MSPTCommand extends PermissionedLeviathanSubcommand {
         sender.sendMessage(Component.text()
             .content("  5s: ")
             .color(GOLD)
-            .append(times.get(0)).append(SLASH).append(times.get(1)).append(SLASH).append(times.get(2))
+            .append(times.get(0)).append(SLASH)
+            .append(times.get(1)).append(SLASH)
+            .append(times.get(2))
             .build());
 
         sender.sendMessage(Component.text()
             .content(" 10s: ")
             .color(GOLD)
-            .append(times.get(3)).append(SLASH).append(times.get(4)).append(SLASH).append(times.get(5))
+            .append(times.get(3)).append(SLASH)
+            .append(times.get(4)).append(SLASH)
+            .append(times.get(5))
             .build());
 
         sender.sendMessage(Component.text()
             .content(" 60s: ")
             .color(GOLD)
-            .append(times.get(6)).append(SLASH).append(times.get(7)).append(SLASH).append(times.get(8))
+            .append(times.get(6)).append(SLASH)
+            .append(times.get(7)).append(SLASH)
+            .append(times.get(8))
             .build());
     }
 
@@ -140,7 +161,7 @@ public final class MSPTCommand extends PermissionedLeviathanSubcommand {
             )
             .build());
 
-        for (net.minecraft.server.level.ServerLevel serverLevel : server.getAllLevels()) {
+        for (ServerLevel serverLevel : server.getAllLevels()) {
             List<Component> worldTimes = new ArrayList<>();
             worldTimes.addAll(eval(serverLevel.tickTimes5s.getTimes()));
             worldTimes.addAll(eval(serverLevel.tickTimes10s.getTimes()));
@@ -157,24 +178,30 @@ public final class MSPTCommand extends PermissionedLeviathanSubcommand {
             sender.sendMessage(Component.text()
                 .content("  5s: ")
                 .color(GRAY)
-                .append(worldTimes.get(0)).append(SLASH).append(worldTimes.get(1)).append(SLASH).append(worldTimes.get(2))
+                .append(worldTimes.get(0)).append(SLASH)
+                .append(worldTimes.get(1)).append(SLASH)
+                .append(worldTimes.get(2))
                 .build());
 
             sender.sendMessage(Component.text()
                 .content(" 10s: ")
                 .color(GRAY)
-                .append(worldTimes.get(3)).append(SLASH).append(worldTimes.get(4)).append(SLASH).append(worldTimes.get(5))
+                .append(worldTimes.get(3)).append(SLASH)
+                .append(worldTimes.get(4)).append(SLASH)
+                .append(worldTimes.get(5))
                 .build());
 
             sender.sendMessage(Component.text()
                 .content(" 60s: ")
                 .color(GRAY)
-                .append(worldTimes.get(6)).append(SLASH).append(worldTimes.get(7)).append(SLASH).append(worldTimes.get(8))
+                .append(worldTimes.get(6)).append(SLASH)
+                .append(worldTimes.get(7)).append(SLASH)
+                .append(worldTimes.get(8))
                 .build());
 
             boolean hasMoreWorlds = false;
-            Iterable<net.minecraft.server.level.ServerLevel> levels = server.getAllLevels();
-            for (net.minecraft.server.level.ServerLevel level : levels) {
+            Iterable<ServerLevel> levels = server.getAllLevels();
+            for (ServerLevel level : levels) {
                 if (level != serverLevel) {
                     hasMoreWorlds = true;
                     break;
@@ -196,8 +223,12 @@ public final class MSPTCommand extends PermissionedLeviathanSubcommand {
         for (long value : times) {
             if (value > 0L) {
                 count++;
-                if (value < min) min = value;
-                if (value > max) max = value;
+                if (value < min) {
+                    min = value;
+                }
+                if (value > max) {
+                    max = value;
+                }
                 total += value;
             }
         }
@@ -219,10 +250,15 @@ public final class MSPTCommand extends PermissionedLeviathanSubcommand {
     }
 
     private static List<Component> eval(TickData tickData) {
-        TickData.TickReportData reportData = tickData.generateTickReport(null, System.nanoTime(), MinecraftServer.getServer().tickRateManager().nanosecondsPerTick());
-        double avgD = reportData == null ? 0.0 : reportData.timePerTickData().segmentAll().average() * 1.0E-6D;
-        double minD = reportData == null ? 0.0 : reportData.timePerTickData().segmentAll().least() * 1.0E-6D;
-        double maxD = reportData == null ? 0.0 : reportData.timePerTickData().segmentAll().greatest() * 1.0E-6D;
+        long nanosPerTick = MinecraftServer.getServer().tickRateManager().nanosecondsPerTick();
+        TickData.TickReportData reportData =
+            tickData.generateTickReport(null, System.nanoTime(), nanosPerTick);
+        SegmentData segment = reportData == null ? null : reportData.timePerTickData().segmentAll();
+
+        double avgD = segment == null ? 0.0 : segment.average() * 1.0E-6D;
+        double minD = segment == null ? 0.0 : segment.least() * 1.0E-6D;
+        double maxD = segment == null ? 0.0 : segment.greatest() * 1.0E-6D;
+
         return Arrays.asList(getColoredValue(avgD), getColoredValue(minD), getColoredValue(maxD));
     }
 
@@ -236,7 +272,11 @@ public final class MSPTCommand extends PermissionedLeviathanSubcommand {
     }
 
     @Override
-    public List<String> tabComplete(final CommandSender sender, final String subCommand, final String[] args) {
+    public List<String> tabComplete(
+        final CommandSender sender,
+        final String subCommand,
+        final String[] args
+    ) {
         if (!SparklyPaperParallelWorldTicking.enabled) {
             return Collections.emptyList();
         }

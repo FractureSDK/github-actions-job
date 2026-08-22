@@ -39,6 +39,9 @@ public final class MetricRegistry {
     private MetricRegistry() {
     }
 
+    /**
+     * 获取全局单例实例
+     */
     public static MetricRegistry get() {
         return INSTANCE;
     }
@@ -47,6 +50,9 @@ public final class MetricRegistry {
 
     /**
      * 获取或创建计数器
+     *
+     * @param name 指标名称
+     * @return 计数器实例
      */
     public Counter counter(String name) {
         return counters.computeIfAbsent(name, Counter::new);
@@ -54,6 +60,10 @@ public final class MetricRegistry {
 
     /**
      * 获取或创建带标签的计数器
+     *
+     * @param name 指标名称
+     * @param tags 标签键值对 (key1, value1, key2, value2, ...)
+     * @return 计数器实例
      */
     public Counter counter(String name, String... tags) {
         String key = buildKey(name, tags);
@@ -64,6 +74,11 @@ public final class MetricRegistry {
 
     /**
      * 注册数值型 Gauge (推荐使用具体类型方法)
+     *
+     * @param name 指标名称
+     * @param supplier 值提供者
+     * @param <T> 数值类型
+     * @return Gauge 实例
      */
     public <T extends Number> Gauge<T> gauge(String name, Supplier<T> supplier) {
         String key = buildKey(name);
@@ -107,6 +122,9 @@ public final class MetricRegistry {
 
     /**
      * 获取或创建直方图
+     *
+     * @param name 指标名称
+     * @return 直方图实例
      */
     public Histogram histogram(String name) {
         return histograms.computeIfAbsent(name, Histogram::new);
@@ -124,6 +142,9 @@ public final class MetricRegistry {
 
     /**
      * 获取或创建计时器
+     *
+     * @param name 指标名称
+     * @return 计时器实例
      */
     public Timer timer(String name) {
         return timers.computeIfAbsent(name, Timer::new);
@@ -141,6 +162,9 @@ public final class MetricRegistry {
 
     /**
      * 获取或创建速率计
+     *
+     * @param name 指标名称
+     * @return 速率计实例
      */
     public Rate rate(String name) {
         return rates.computeIfAbsent(name, Rate::new);
@@ -204,10 +228,19 @@ public final class MetricRegistry {
             this.name = name;
         }
 
+        /**
+         * 增加计数器
+         */
         public void inc() {
             value.incrementAndGet();
         }
 
+        /**
+         * 增加计数器指定值
+         *
+         * @param delta 增量值 (必须非负)
+         * @throws IllegalArgumentException 如果 delta 为负数
+         */
         public void inc(long delta) {
             if (delta < 0) {
                 throw new IllegalArgumentException("Counter cannot decrease");
@@ -215,10 +248,16 @@ public final class MetricRegistry {
             value.addAndGet(delta);
         }
 
+        /**
+         * 获取当前计数
+         */
         public long get() {
             return value.get();
         }
 
+        /**
+         * 获取指标名称
+         */
         public String getName() {
             return name;
         }
@@ -231,6 +270,8 @@ public final class MetricRegistry {
 
     /**
      * 瞬时值观测
+     *
+     * @param <T> 数值类型
      */
     public static final class Gauge<T extends Number> {
         private final String name;
@@ -241,20 +282,32 @@ public final class MetricRegistry {
             this.supplier = supplier;
         }
 
+        /**
+         * 获取当前值
+         */
         public T getValue() {
             return supplier.get();
         }
 
+        /**
+         * 获取双精度值
+         */
         public double getAsDouble() {
             T value = getValue();
             return value != null ? value.doubleValue() : 0;
         }
 
+        /**
+         * 获取长整型值
+         */
         public long getAsLong() {
             T value = getValue();
             return value != null ? value.longValue() : 0;
         }
 
+        /**
+         * 获取整型值
+         */
         public int getAsInt() {
             T value = getValue();
             return value != null ? value.intValue() : 0;
@@ -273,6 +326,7 @@ public final class MetricRegistry {
      */
     public static final class Histogram {
         private final String name;
+
         // 使用简单的数组桶实现，避免外部依赖
         // 桶范围：1us 到 10s，共 64 个桶（指数增长）
         private static final int BUCKET_COUNT = 64;
@@ -280,6 +334,7 @@ public final class MetricRegistry {
         private static final double MAX_VALUE = 10_000_000.0; // 10 seconds
         private static final double MULTIPLIER =
             Math.pow(MAX_VALUE / MIN_VALUE, 1.0 / (BUCKET_COUNT - 1));
+
         // 预计算桶边界，避免热路径中的 log/pow 计算
         private static final double[] BUCKET_BOUNDARIES = new double[BUCKET_COUNT];
 
@@ -304,6 +359,8 @@ public final class MetricRegistry {
          * <p>
          * 由 tick 线程写入，而统计读取（getMean/percentile）发生在指标同步线程，
          * 因此所有读写方法必须同步。每 tick 仅记录一次，锁竞争可忽略。
+         *
+         * @param valueUs 值（微秒）
          */
         public synchronized void record(double valueUs) {
             if (valueUs < 0) {
@@ -374,6 +431,9 @@ public final class MetricRegistry {
 
         /**
          * 获取指定百分位数（单位：微秒）
+         *
+         * @param p 百分位数 (0-100)
+         * @return 对应的值（微秒）
          */
         public synchronized double percentile(double p) {
             if (count == 0) return 0;

@@ -1,27 +1,15 @@
 package dev.vospek.leviathan.command;
 
-import io.papermc.paper.command.CommandUtil;
-import it.unimi.dsi.fastutil.Pair;
-import net.kyori.adventure.text.Component;
-import net.kyori.adventure.text.format.NamedTextColor;
-import net.minecraft.util.Util;
 import dev.vospek.leviathan.command.subcommands.MSPTCommand;
 import dev.vospek.leviathan.command.subcommands.MetricsCommand;
 import dev.vospek.leviathan.command.subcommands.ReloadCommand;
 import dev.vospek.leviathan.command.subcommands.RulesCommand;
 import dev.vospek.leviathan.command.subcommands.RuntimeCommand;
-import dev.vospek.leviathan.command.subcommands.StatusCommand;
 import dev.vospek.leviathan.command.subcommands.StatsCommand;
+import dev.vospek.leviathan.command.subcommands.StatusCommand;
 import dev.vospek.leviathan.command.subcommands.VersionCommand;
-import org.jspecify.annotations.Nullable;
-import org.bukkit.Bukkit;
-import org.bukkit.Location;
-import org.bukkit.command.Command;
-import org.bukkit.command.CommandSender;
-import org.bukkit.permissions.Permission;
-import org.bukkit.permissions.PermissionDefault;
-import org.bukkit.plugin.PluginManager;
-
+import io.papermc.paper.command.CommandUtil;
+import it.unimi.dsi.fastutil.Pair;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
@@ -33,12 +21,25 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.stream.Collectors;
+import net.kyori.adventure.text.Component;
+import net.kyori.adventure.text.format.NamedTextColor;
+import net.minecraft.util.Util;
+import org.bukkit.Bukkit;
+import org.bukkit.Location;
+import org.bukkit.command.Command;
+import org.bukkit.command.CommandSender;
+import org.bukkit.permissions.Permission;
+import org.bukkit.permissions.PermissionDefault;
+import org.bukkit.plugin.PluginManager;
+import org.jspecify.annotations.Nullable;
 
 public final class LeviathanCommand extends Command {
 
     public static final String COMMAND_LABEL = "leviathan";
-    public static final String BASE_PERM = LeviathanCommands.COMMAND_BASE_PERM + "." + COMMAND_LABEL;
-    private static final Permission basePermission = new Permission(BASE_PERM, PermissionDefault.OP);
+    public static final String BASE_PERM =
+        LeviathanCommands.COMMAND_BASE_PERM + "." + COMMAND_LABEL;
+    private static final Permission basePermission =
+        new Permission(BASE_PERM, PermissionDefault.OP);
     // subcommand label -> subcommand
     private static final LeviathanSubcommand RELOAD_SUBCOMMAND = new ReloadCommand();
     private static final LeviathanSubcommand VERSION_SUBCOMMAND = new VersionCommand();
@@ -83,7 +84,10 @@ public final class LeviathanCommand extends Command {
         super(COMMAND_LABEL);
         this.description = "Leviathan related commands";
         this.usageMessage = this.createUsageMessage(SUBCOMMANDS.keySet());
-        final List<Permission> permissions = SUBCOMMANDS.values().stream().map(LeviathanSubcommand::getPermission).filter(Objects::nonNull).toList();
+        final List<Permission> permissions = SUBCOMMANDS.values().stream()
+            .map(LeviathanSubcommand::getPermission)
+            .filter(Objects::nonNull)
+            .toList();
         this.setPermission(BASE_PERM);
         final PluginManager pluginManager = Bukkit.getServer().getPluginManager();
         pluginManager.addPermission(basePermission);
@@ -114,7 +118,8 @@ public final class LeviathanCommand extends Command {
         final Pair<String, LeviathanSubcommand> subCommand = resolveCommand(args[0]);
 
         if (subCommand != null && subCommand.second().testPermission(sender)) {
-            return subCommand.second().tabComplete(sender, subCommand.first(), Arrays.copyOfRange(args, 1, args.length));
+            return subCommand.second().tabComplete(
+                sender, subCommand.first(), Arrays.copyOfRange(args, 1, args.length));
         }
 
         return Collections.emptyList();
@@ -154,14 +159,17 @@ public final class LeviathanCommand extends Command {
 
         // If they did not give a subcommand
         if (args.length == 0) {
-            sender.sendMessage(Component.text("Command usage: " + specificUsageMessage, NamedTextColor.GRAY));
+            sender.sendMessage(Component.text(
+                "Command usage: " + specificUsageMessage, NamedTextColor.GRAY));
             return false;
         }
 
-        // If they do not have permission for the subcommand they gave, or the argument is not a valid subcommand
+        // If they do not have permission for the subcommand they gave,
+        // or the argument is not a valid subcommand
         final Pair<String, LeviathanSubcommand> subCommand = resolveCommand(args[0]);
         if (subCommand == null || !subCommand.second().testPermission(sender)) {
-            sender.sendMessage(Component.text("Usage: " + specificUsageMessage, NamedTextColor.RED));
+            sender.sendMessage(Component.text(
+                "Usage: " + specificUsageMessage, NamedTextColor.RED));
             return false;
         }
 

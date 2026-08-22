@@ -4,11 +4,10 @@ import dev.vospek.leviathan.bootstrap.LeviathanBootstrap;
 import dev.vospek.leviathan.command.LeviathanCommand;
 import dev.vospek.leviathan.command.PermissionedLeviathanSubcommand;
 import dev.vospek.leviathan.observability.StartupReporter;
-import org.bukkit.command.CommandSender;
-import org.bukkit.permissions.PermissionDefault;
-
 import java.util.Collections;
 import java.util.List;
+import org.bukkit.command.CommandSender;
+import org.bukkit.permissions.PermissionDefault;
 
 /**
  * {@code /leviathan rules} 子命令
@@ -27,14 +26,22 @@ public final class RulesCommand extends PermissionedLeviathanSubcommand {
     }
 
     @Override
-    public boolean execute(final CommandSender sender, final String subCommand, final String[] args) {
+    public boolean execute(
+        final CommandSender sender,
+        final String subCommand,
+        final String[] args
+    ) {
         LeviathanBootstrap.initialize();
         sender.sendMessage(StartupReporter.buildEffectiveFeatures());
         return true;
     }
 
     @Override
-    public List<String> tabComplete(final CommandSender sender, final String subCommand, final String[] args) {
+    public List<String> tabComplete(
+        final CommandSender sender,
+        final String subCommand,
+        final String[] args
+    ) {
         return Collections.emptyList();
     }
 }

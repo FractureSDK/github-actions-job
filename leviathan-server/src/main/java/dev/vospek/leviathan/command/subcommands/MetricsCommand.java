@@ -1,18 +1,23 @@
 package dev.vospek.leviathan.command.subcommands;
 
+import static net.kyori.adventure.text.Component.empty;
+import static net.kyori.adventure.text.Component.text;
+import static net.kyori.adventure.text.format.NamedTextColor.AQUA;
+import static net.kyori.adventure.text.format.NamedTextColor.GOLD;
+import static net.kyori.adventure.text.format.NamedTextColor.GRAY;
+import static net.kyori.adventure.text.format.NamedTextColor.GREEN;
+import static net.kyori.adventure.text.format.NamedTextColor.RED;
+import static net.kyori.adventure.text.format.NamedTextColor.WHITE;
+import static net.kyori.adventure.text.format.NamedTextColor.YELLOW;
+
 import dev.vospek.leviathan.command.LeviathanCommand;
 import dev.vospek.leviathan.command.PermissionedLeviathanSubcommand;
 import dev.vospek.leviathan.observability.MetricRegistry;
+import java.util.List;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.format.NamedTextColor;
 import org.bukkit.command.CommandSender;
 import org.bukkit.permissions.PermissionDefault;
-
-import java.util.List;
-
-import static net.kyori.adventure.text.Component.empty;
-import static net.kyori.adventure.text.Component.text;
-import static net.kyori.adventure.text.format.NamedTextColor.*;
 
 public final class MetricsCommand extends PermissionedLeviathanSubcommand {
 
@@ -24,7 +29,11 @@ public final class MetricsCommand extends PermissionedLeviathanSubcommand {
     }
 
     @Override
-    public boolean execute(final CommandSender sender, final String subCommand, final String[] args) {
+    public boolean execute(
+        final CommandSender sender,
+        final String subCommand,
+        final String[] args
+    ) {
         if (args.length == 0) {
             showOverview(sender);
             return true;
@@ -40,7 +49,9 @@ public final class MetricsCommand extends PermissionedLeviathanSubcommand {
             case "snapshot" -> showSnapshot(sender);
             default -> {
                 sender.sendMessage(text("Unknown subcommand: " + subCmd).color(RED));
-                sender.sendMessage(text("Usage: /leviathan metrics [counters|gauges|histograms|timers|rates|snapshot]").color(GRAY));
+                sender.sendMessage(text(
+                    "Usage: /leviathan metrics [counters|gauges|histograms|timers|rates|snapshot]")
+                    .color(GRAY));
                 return false;
             }
         }
@@ -54,20 +65,27 @@ public final class MetricsCommand extends PermissionedLeviathanSubcommand {
         sender.sendMessage(header("Leviathan Metrics Registry"));
 
         sender.sendMessage(section("Registered Metrics:"));
-        sender.sendMessage(kv("  Counters:    ", text(String.valueOf(snapshot.counters().size())), GRAY, WHITE));
-        sender.sendMessage(kv("  Gauges:      ", text(String.valueOf(snapshot.gauges().size())), GRAY, WHITE));
-        sender.sendMessage(kv("  Histograms:  ", text(String.valueOf(snapshot.histograms().size())), GRAY, WHITE));
-        sender.sendMessage(kv("  Timers:      ", text(String.valueOf(snapshot.timers().size())), GRAY, WHITE));
-        sender.sendMessage(kv("  Rates:       ", text(String.valueOf(snapshot.rates().size())), GRAY, WHITE));
+        sender.sendMessage(kv("  Counters:    ",
+            text(String.valueOf(snapshot.counters().size())), GRAY, WHITE));
+        sender.sendMessage(kv("  Gauges:      ",
+            text(String.valueOf(snapshot.gauges().size())), GRAY, WHITE));
+        sender.sendMessage(kv("  Histograms:  ",
+            text(String.valueOf(snapshot.histograms().size())), GRAY, WHITE));
+        sender.sendMessage(kv("  Timers:      ",
+            text(String.valueOf(snapshot.timers().size())), GRAY, WHITE));
+        sender.sendMessage(kv("  Rates:       ",
+            text(String.valueOf(snapshot.rates().size())), GRAY, WHITE));
 
         sender.sendMessage(empty());
         sender.sendMessage(section("Usage:"));
-        sender.sendMessage(text("  /leviathan metrics counters    ").color(GRAY).append(text("- List all counters").color(GRAY)));
-        sender.sendMessage(text("  /leviathan metrics gauges      ").color(GRAY).append(text("- List all gauges").color(GRAY)));
-        sender.sendMessage(text("  /leviathan metrics histograms  ").color(GRAY).append(text("- List all histograms").color(GRAY)));
-        sender.sendMessage(text("  /leviathan metrics timers      ").color(GRAY).append(text("- List all timers").color(GRAY)));
-        sender.sendMessage(text("  /leviathan metrics rates       ").color(GRAY).append(text("- List all rates").color(GRAY)));
-        sender.sendMessage(text("  /leviathan metrics snapshot    ").color(GRAY).append(text("- Full snapshot").color(GRAY)));
+        sender.sendMessage(
+            text("  /leviathan metrics counters    - List all counters").color(GRAY));
+        sender.sendMessage(text("  /leviathan metrics gauges      - List all gauges").color(GRAY));
+        sender.sendMessage(
+            text("  /leviathan metrics histograms  - List all histograms").color(GRAY));
+        sender.sendMessage(text("  /leviathan metrics timers      - List all timers").color(GRAY));
+        sender.sendMessage(text("  /leviathan metrics rates       - List all rates").color(GRAY));
+        sender.sendMessage(text("  /leviathan metrics snapshot    - Full snapshot").color(GRAY));
     }
 
     private void showCounters(CommandSender sender) {
@@ -168,12 +186,21 @@ public final class MetricsCommand extends PermissionedLeviathanSubcommand {
         return text("▸ ").color(AQUA).append(text(title).color(AQUA));
     }
 
-    private static Component kv(String key, Component value, NamedTextColor keyColor, NamedTextColor valueColor) {
+    private static Component kv(
+        String key,
+        Component value,
+        NamedTextColor keyColor,
+        NamedTextColor valueColor
+    ) {
         return text(key).color(keyColor).append(value.color(valueColor));
     }
 
     @Override
-    public List<String> tabComplete(final CommandSender sender, final String subCommand, final String[] args) {
+    public List<String> tabComplete(
+        final CommandSender sender,
+        final String subCommand,
+        final String[] args
+    ) {
         if (args.length == 1) {
             return List.of("counters", "gauges", "histograms", "timers", "rates", "snapshot");
         }

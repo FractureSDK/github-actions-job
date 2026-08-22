@@ -1,5 +1,14 @@
 package dev.vospek.leviathan.observability;
 
+import static net.kyori.adventure.text.Component.empty;
+import static net.kyori.adventure.text.Component.text;
+import static net.kyori.adventure.text.format.NamedTextColor.AQUA;
+import static net.kyori.adventure.text.format.NamedTextColor.GOLD;
+import static net.kyori.adventure.text.format.NamedTextColor.GRAY;
+import static net.kyori.adventure.text.format.NamedTextColor.GREEN;
+import static net.kyori.adventure.text.format.NamedTextColor.RED;
+import static net.kyori.adventure.text.format.NamedTextColor.YELLOW;
+
 import dev.vospek.leviathan.bootstrap.HardwareCapabilities;
 import dev.vospek.leviathan.bootstrap.LeviathanBootstrap;
 import dev.vospek.leviathan.bootstrap.RuntimeDetector;
@@ -8,10 +17,6 @@ import dev.vospek.leviathan.config.modules.misc.CoreConfig;
 import dev.vospek.leviathan.config.modules.misc.RegionFormatConfig;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.format.NamedTextColor;
-
-import static net.kyori.adventure.text.Component.empty;
-import static net.kyori.adventure.text.Component.text;
-import static net.kyori.adventure.text.format.NamedTextColor.*;
 
 /**
  * Leviathan 启动报告生成器
@@ -46,7 +51,8 @@ public final class StartupReporter {
         RuntimeDetector.RuntimeInfo rt = LeviathanBootstrap.getRuntimeInfo();
         if (rt != null) {
             sb.append("JVM: ").append(rt.javaVersion).append(" / ").append(rt.vmName)
-                .append(" / OS ").append(rt.osName).append(' ').append(rt.architecture).append('\n');
+                .append(" / OS ").append(rt.osName).append(' ')
+                .append(rt.architecture).append('\n');
             sb.append("JVM Args: ").append(rt.inputArguments != null
                 ? String.join(" ", rt.inputArguments) : "n/a").append('\n');
         }
@@ -56,7 +62,8 @@ public final class StartupReporter {
             .append(", compression=").append(RegionFormatConfig.compressionLevel)
             .append(", io threads=").append(RegionFormatConfig.ioThreadCount)
             .append(", flush delay=").append(RegionFormatConfig.ioFlushDelay).append("ms")
-            .append(", virtual thread=").append(RegionFormatConfig.linearUseVirtualThread).append('\n');
+            .append(", virtual thread=")
+            .append(RegionFormatConfig.linearUseVirtualThread).append('\n');
 
         // Network
         NetworkMetrics nm = NetworkMetrics.get();
@@ -68,7 +75,8 @@ public final class StartupReporter {
         EntityMetrics em = EntityMetrics.get();
         sb.append("Entity: active=").append(em.getActiveEntityCount())
             .append(", ticking=").append(em.getTickingEntityCount())
-            .append(", DAB shadow reduced ticks=").append(em.getDabShadowReducedTicks()).append('\n');
+            .append(", DAB shadow reduced ticks=")
+            .append(em.getDabShadowReducedTicks()).append('\n');
 
         // Async
         AsyncMetrics am = AsyncMetrics.get();
@@ -100,12 +108,14 @@ public final class StartupReporter {
             .append(", rocksdb=").append(CoreConfig.featureRocksDB).append('\n');
 
         // Benchmark status
-        sb.append("Benchmark framework: ").append(CoreConfig.benchmarkEnabled ? "enabled" : "disabled").append('\n');
+        sb.append("Benchmark framework: ")
+            .append(CoreConfig.benchmarkEnabled ? "enabled" : "disabled").append('\n');
 
         // Hardware
         HardwareCapabilities hw = LeviathanBootstrap.getHardwareCapabilities();
         if (hw != null) {
-            sb.append("Hardware: ").append(hw.physicalProcessors).append('/').append(hw.logicalProcessors)
+            sb.append("Hardware: ")
+                .append(hw.physicalProcessors).append('/').append(hw.logicalProcessors)
                 .append(" CPUs, SIMD=").append(hw.hasSIMD).append(", AVX2=").append(hw.hasAVX2)
                 .append(", AVX-512=").append(hw.hasAVX512).append('\n');
         }
@@ -155,26 +165,26 @@ public final class StartupReporter {
 
         component = component.append(empty())
             .append(text("▸ Storage").color(AQUA)).append(empty())
-            .append(featureRow("  Linear Storage ", "linear-storage", CoreConfig.featureLinearStorage, safe))
-            .append(featureRow("  Zstd Storage   ", "zstd-storage", CoreConfig.featureZstdStorage, safe))
-            .append(featureRow("  Mmap I/O       ", "mmap", CoreConfig.featureMmap, safe))
-            .append(featureRow("  RocksDB        ", "rocksdb", CoreConfig.featureRocksDB, safe));
+            .append(featureRow("  Linear Storage ", CoreConfig.featureLinearStorage, safe))
+            .append(featureRow("  Zstd Storage   ", CoreConfig.featureZstdStorage, safe))
+            .append(featureRow("  Mmap I/O       ", CoreConfig.featureMmap, safe))
+            .append(featureRow("  RocksDB        ", CoreConfig.featureRocksDB, safe));
 
         component = component.append(empty())
             .append(text("▸ Network").color(AQUA)).append(empty())
-            .append(featureRow("  Zstd Network   ", "zstd-network", CoreConfig.featureZstdNetwork, safe))
-            .append(featureRow("  Async Chunk    ", "async-chunk", CoreConfig.featureAsyncChunk, safe));
+            .append(featureRow("  Zstd Network   ", CoreConfig.featureZstdNetwork, safe))
+            .append(featureRow("  Async Chunk    ", CoreConfig.featureAsyncChunk, safe));
 
         component = component.append(empty())
             .append(text("▸ Entity / Simulation").color(AQUA)).append(empty())
-            .append(featureRow("  DAB            ", "dab", CoreConfig.featureDAB, safe))
-            .append(featureRow("  Hopper Sleep   ", "hopper-sleep", CoreConfig.featureHopperSleep, safe))
-            .append(featureRow("  SIMD           ", "simd", CoreConfig.featureSIMD, safe));
+            .append(featureRow("  DAB            ", CoreConfig.featureDAB, safe))
+            .append(featureRow("  Hopper Sleep   ", CoreConfig.featureHopperSleep, safe))
+            .append(featureRow("  SIMD           ", CoreConfig.featureSIMD, safe));
 
         component = component.append(empty())
             .append(text("▸ Scheduling").color(AQUA)).append(empty())
-            .append(featureRow("  Region Tick    ", "region-tick", CoreConfig.featureRegionTick, safe))
-            .append(featureRow("  Plugin Async   ", "plugin-async", CoreConfig.featurePluginAsync, safe));
+            .append(featureRow("  Region Tick    ", CoreConfig.featureRegionTick, safe))
+            .append(featureRow("  Plugin Async   ", CoreConfig.featurePluginAsync, safe));
 
         component = component.append(empty())
             .append(text("▸ Core").color(AQUA)).append(empty())
@@ -182,17 +192,19 @@ public final class StartupReporter {
             .append(toggleRow("  Observability  ", CoreConfig.observabilityEnabled))
             .append(toggleRow("  Benchmark      ", CoreConfig.benchmarkEnabled))
             .append(toggleRow("  Experimental   ", CoreConfig.experimentalEnabled))
-            .append(text("  Runtime Mode   ").color(GRAY).append(text(CoreConfig.runtimeMode).color(YELLOW)).append(empty()));
+            .append(text("  Runtime Mode   ").color(GRAY)
+                .append(text(CoreConfig.runtimeMode).color(YELLOW)).append(empty()));
 
         if (safe) {
             component = component.append(empty())
-                .append(text("Safe mode: experimental flags downgraded to disabled.").color(YELLOW));
+                .append(text("Safe mode: experimental flags downgraded to disabled.")
+                    .color(YELLOW));
         }
 
         return component;
     }
 
-    private static Component featureRow(String label, String key, String flag, boolean safeMode) {
+    private static Component featureRow(String label, String flag, boolean safeMode) {
         String effective = effectiveFlag(flag, safeMode);
         return text(label).color(GRAY)
             .append(text(effective).color(colorForFlag(effective)))

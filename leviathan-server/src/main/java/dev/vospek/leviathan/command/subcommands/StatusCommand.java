@@ -1,26 +1,32 @@
 package dev.vospek.leviathan.command.subcommands;
 
+import static net.kyori.adventure.text.Component.empty;
+import static net.kyori.adventure.text.Component.text;
+import static net.kyori.adventure.text.format.NamedTextColor.AQUA;
+import static net.kyori.adventure.text.format.NamedTextColor.GOLD;
+import static net.kyori.adventure.text.format.NamedTextColor.GRAY;
+import static net.kyori.adventure.text.format.NamedTextColor.GREEN;
+import static net.kyori.adventure.text.format.NamedTextColor.RED;
+import static net.kyori.adventure.text.format.NamedTextColor.WHITE;
+import static net.kyori.adventure.text.format.NamedTextColor.YELLOW;
+
 import dev.vospek.leviathan.bootstrap.HardwareCapabilities;
 import dev.vospek.leviathan.bootstrap.LeviathanBootstrap;
 import dev.vospek.leviathan.bootstrap.RuntimeDetector;
 import dev.vospek.leviathan.command.LeviathanCommand;
 import dev.vospek.leviathan.command.PermissionedLeviathanSubcommand;
 import dev.vospek.leviathan.config.modules.misc.CoreConfig;
-import net.kyori.adventure.text.Component;
-import net.kyori.adventure.text.format.NamedTextColor;
-import org.bukkit.command.CommandSender;
-import org.bukkit.permissions.PermissionDefault;
-
+import io.papermc.paper.ServerBuildInfo;
 import java.lang.management.ManagementFactory;
 import java.lang.management.MemoryMXBean;
 import java.lang.management.MemoryUsage;
 import java.lang.management.OperatingSystemMXBean;
 import java.text.DecimalFormat;
 import java.util.List;
-
-import static net.kyori.adventure.text.Component.empty;
-import static net.kyori.adventure.text.Component.text;
-import static net.kyori.adventure.text.format.NamedTextColor.*;
+import net.kyori.adventure.text.Component;
+import net.kyori.adventure.text.format.NamedTextColor;
+import org.bukkit.command.CommandSender;
+import org.bukkit.permissions.PermissionDefault;
 
 public final class StatusCommand extends PermissionedLeviathanSubcommand {
 
@@ -33,7 +39,11 @@ public final class StatusCommand extends PermissionedLeviathanSubcommand {
     }
 
     @Override
-    public boolean execute(final CommandSender sender, final String subCommand, final String[] args) {
+    public boolean execute(
+        final CommandSender sender,
+        final String subCommand,
+        final String[] args
+    ) {
         // Ensure bootstrap is initialized
         LeviathanBootstrap.initialize();
 
@@ -57,36 +67,51 @@ public final class StatusCommand extends PermissionedLeviathanSubcommand {
 
         sender.sendMessage(empty());
         sender.sendMessage(section("Runtime"));
-        sender.sendMessage(kv("  Java:       ", text(runtime.javaVersion + " (" + runtime.vmName + ")"), GRAY, WHITE));
-        sender.sendMessage(kv("  OS:         ", text(runtime.osName + " " + runtime.osVersion + " (" + runtime.architecture + ")"), GRAY, WHITE));
+        sender.sendMessage(kv("  Java:       ",
+            text(runtime.javaVersion + " (" + runtime.vmName + ")"), GRAY, WHITE));
+        sender.sendMessage(kv("  OS:         ",
+            text(runtime.osName + " " + runtime.osVersion + " (" + runtime.architecture + ")"),
+            GRAY, WHITE));
 
         sender.sendMessage(empty());
         sender.sendMessage(section("Hardware"));
-        sender.sendMessage(kv("  CPU:        ", text(hardware.logicalProcessors + " logical / " + hardware.physicalProcessors + " physical"), GRAY, WHITE));
-        sender.sendMessage(kv("  SIMD/AVX2:  ", text((hardware.hasSIMD ? "SIMD " : "") + (hardware.hasAVX2 ? "AVX2 " : "") + (hardware.hasAVX512 ? "AVX-512" : "")), GRAY, WHITE));
-        
+        String cpuInfo = hardware.logicalProcessors + " logical / " + hardware.physicalProcessors
+            + " physical";
+        sender.sendMessage(kv("  CPU:        ", text(cpuInfo), GRAY, WHITE));
+        String simdInfo = (hardware.hasSIMD ? "SIMD " : "")
+            + (hardware.hasAVX2 ? "AVX2 " : "")
+            + (hardware.hasAVX512 ? "AVX-512" : "");
+        sender.sendMessage(kv("  SIMD/AVX2:  ", text(simdInfo), GRAY, WHITE));
+
         // Memory
         MemoryMXBean memoryMXBean = ManagementFactory.getMemoryMXBean();
         MemoryUsage heapUsage = memoryMXBean.getHeapMemoryUsage();
         OperatingSystemMXBean osBean = ManagementFactory.getOperatingSystemMXBean();
-        
+
         sender.sendMessage(empty());
         sender.sendMessage(section("Memory"));
-        sender.sendMessage(kv("  Heap:       ", text(formatBytes(heapUsage.getUsed()) + " / " + formatBytes(heapUsage.getMax())), GRAY, WHITE));
-        sender.sendMessage(kv("  Physical:   ", text(formatBytes(hardware.physicalMemoryBytes)), GRAY, WHITE));
-        
+        sender.sendMessage(kv("  Heap:       ",
+            text(formatBytes(heapUsage.getUsed()) + " / " + formatBytes(heapUsage.getMax())),
+            GRAY, WHITE));
+        sender.sendMessage(kv("  Physical:   ",
+            text(formatBytes(hardware.physicalMemoryBytes)), GRAY, WHITE));
+
         // CPU Load
         sender.sendMessage(empty());
         sender.sendMessage(section("System Load"));
-        sender.sendMessage(kv("  CPU Load:   ", text(DF.format(osBean.getSystemLoadAverage())), GRAY, WHITE));
-        sender.sendMessage(kv("  Process CPU:", text(getProcessCpuPercent(osBean) + "%"), GRAY, WHITE));
+        sender.sendMessage(kv("  CPU Load:   ",
+            text(DF.format(osBean.getSystemLoadAverage())), GRAY, WHITE));
+        sender.sendMessage(kv("  Process CPU:",
+            text(getProcessCpuPercent(osBean) + "%"), GRAY, WHITE));
 
         // Runtime Mode
+        boolean safeMode = CoreConfig.isSafeMode();
         sender.sendMessage(empty());
         sender.sendMessage(section("Runtime Mode"));
         sender.sendMessage(kv("  Mode:       ", text(CoreConfig.runtimeMode), GRAY, YELLOW));
-        sender.sendMessage(kv("  Safe Mode:  ", text(CoreConfig.isSafeMode() ? "yes" : "no"), GRAY, CoreConfig.isSafeMode() ? RED : GREEN));
-        
+        sender.sendMessage(kv("  Safe Mode:  ",
+            text(safeMode ? "yes" : "no"), GRAY, safeMode ? RED : GREEN));
+
         // Active Features (from config)
         sender.sendMessage(empty());
         sender.sendMessage(section("Active Features"));
@@ -97,9 +122,10 @@ public final class StatusCommand extends PermissionedLeviathanSubcommand {
 
     private String getLeviathanVersion() {
         try {
-            var buildInfo = io.papermc.paper.ServerBuildInfo.buildInfo();
+            ServerBuildInfo buildInfo = ServerBuildInfo.buildInfo();
             if (buildInfo.buildNumber().isPresent()) {
-                return buildInfo.brandName() + " " + buildInfo.minecraftVersionId() + " (build " + buildInfo.buildNumber().getAsInt() + ")";
+                return buildInfo.brandName() + " " + buildInfo.minecraftVersionId()
+                    + " (build " + buildInfo.buildNumber().getAsInt() + ")";
             }
             return buildInfo.brandName() + " " + buildInfo.minecraftVersionId() + " (dev)";
         } catch (Exception e) {
@@ -109,7 +135,8 @@ public final class StatusCommand extends PermissionedLeviathanSubcommand {
 
     private String getLeafVersion() {
         try {
-            return io.papermc.paper.ServerBuildInfo.buildInfo().asString(io.papermc.paper.ServerBuildInfo.StringRepresentation.VERSION_SIMPLE);
+            return ServerBuildInfo.buildInfo()
+                .asString(ServerBuildInfo.StringRepresentation.VERSION_SIMPLE);
         } catch (Exception e) {
             return "unknown";
         }
@@ -126,23 +153,38 @@ public final class StatusCommand extends PermissionedLeviathanSubcommand {
 
     private void listActiveFeatures(CommandSender sender) {
         sender.sendMessage(text("  Core Toggles:").color(GRAY));
-        sender.sendMessage(featureLine("    Diagnostics:     ", CoreConfig.diagnosticsEnabled));
-        sender.sendMessage(featureLine("    Observability:   ", CoreConfig.observabilityEnabled));
-        sender.sendMessage(featureLine("    Benchmark:       ", CoreConfig.benchmarkEnabled));
-        sender.sendMessage(featureLine("    Experimental:    ", CoreConfig.experimentalEnabled));
-        
+        sender.sendMessage(featureLine(
+            "    Diagnostics:     ", CoreConfig.diagnosticsEnabled));
+        sender.sendMessage(featureLine(
+            "    Observability:   ", CoreConfig.observabilityEnabled));
+        sender.sendMessage(featureLine(
+            "    Benchmark:       ", CoreConfig.benchmarkEnabled));
+        sender.sendMessage(featureLine(
+            "    Experimental:    ", CoreConfig.experimentalEnabled));
+
         sender.sendMessage(text("  Feature Flags:").color(GRAY));
-        sender.sendMessage(featureFlagLine("    Linear Storage:  ", CoreConfig.featureLinearStorage));
-        sender.sendMessage(featureFlagLine("    Zstd Storage:    ", CoreConfig.featureZstdStorage));
-        sender.sendMessage(featureFlagLine("    DAB:             ", CoreConfig.featureDAB));
-        sender.sendMessage(featureFlagLine("    Async Chunk:     ", CoreConfig.featureAsyncChunk));
-        sender.sendMessage(featureFlagLine("    Region Tick:     ", CoreConfig.featureRegionTick));
-        sender.sendMessage(featureFlagLine("    Plugin Async:    ", CoreConfig.featurePluginAsync));
-        sender.sendMessage(featureFlagLine("    Hopper Sleep:    ", CoreConfig.featureHopperSleep));
-        sender.sendMessage(featureFlagLine("    SIMD:            ", CoreConfig.featureSIMD));
-        sender.sendMessage(featureFlagLine("    Zstd Network:    ", CoreConfig.featureZstdNetwork));
-        sender.sendMessage(featureFlagLine("    Mmap:            ", CoreConfig.featureMmap));
-        sender.sendMessage(featureFlagLine("    RocksDB:         ", CoreConfig.featureRocksDB));
+        sender.sendMessage(featureFlagLine(
+            "    Linear Storage:  ", CoreConfig.featureLinearStorage));
+        sender.sendMessage(featureFlagLine(
+            "    Zstd Storage:    ", CoreConfig.featureZstdStorage));
+        sender.sendMessage(featureFlagLine(
+            "    DAB:             ", CoreConfig.featureDAB));
+        sender.sendMessage(featureFlagLine(
+            "    Async Chunk:     ", CoreConfig.featureAsyncChunk));
+        sender.sendMessage(featureFlagLine(
+            "    Region Tick:     ", CoreConfig.featureRegionTick));
+        sender.sendMessage(featureFlagLine(
+            "    Plugin Async:    ", CoreConfig.featurePluginAsync));
+        sender.sendMessage(featureFlagLine(
+            "    Hopper Sleep:    ", CoreConfig.featureHopperSleep));
+        sender.sendMessage(featureFlagLine(
+            "    SIMD:            ", CoreConfig.featureSIMD));
+        sender.sendMessage(featureFlagLine(
+            "    Zstd Network:    ", CoreConfig.featureZstdNetwork));
+        sender.sendMessage(featureFlagLine(
+            "    Mmap:            ", CoreConfig.featureMmap));
+        sender.sendMessage(featureFlagLine(
+            "    RocksDB:         ", CoreConfig.featureRocksDB));
     }
 
     private static Component featureLine(String label, boolean enabled) {
@@ -174,20 +216,37 @@ public final class StatusCommand extends PermissionedLeviathanSubcommand {
         return text("▸ ").color(AQUA).append(text(title).color(AQUA));
     }
 
-    private static Component kv(String key, Component value, NamedTextColor keyColor, NamedTextColor valueColor) {
+    private static Component kv(
+        String key,
+        Component value,
+        NamedTextColor keyColor,
+        NamedTextColor valueColor
+    ) {
         return text(key).color(keyColor).append(value.color(valueColor));
     }
 
     private String formatBytes(long bytes) {
-        if (bytes < 0) return "unknown";
-        if (bytes >= 1024L * 1024 * 1024) return DF.format(bytes / (1024.0 * 1024 * 1024)) + " GB";
-        if (bytes >= 1024 * 1024) return DF.format(bytes / (1024.0 * 1024)) + " MB";
-        if (bytes >= 1024) return DF.format(bytes / 1024.0) + " KB";
+        if (bytes < 0) {
+            return "unknown";
+        }
+        if (bytes >= 1024L * 1024 * 1024) {
+            return DF.format(bytes / (1024.0 * 1024 * 1024)) + " GB";
+        }
+        if (bytes >= 1024 * 1024) {
+            return DF.format(bytes / (1024.0 * 1024)) + " MB";
+        }
+        if (bytes >= 1024) {
+            return DF.format(bytes / 1024.0) + " KB";
+        }
         return bytes + " B";
     }
 
     @Override
-    public List<String> tabComplete(final CommandSender sender, final String subCommand, final String[] args) {
+    public List<String> tabComplete(
+        final CommandSender sender,
+        final String subCommand,
+        final String[] args
+    ) {
         return List.of();
     }
 }

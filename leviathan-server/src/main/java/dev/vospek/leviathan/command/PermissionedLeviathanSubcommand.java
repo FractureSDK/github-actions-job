@@ -12,7 +12,10 @@ public abstract class PermissionedLeviathanSubcommand implements LeviathanSubcom
         this.permission = permission;
     }
 
-    protected PermissionedLeviathanSubcommand(String permission, PermissionDefault permissionDefault) {
+    protected PermissionedLeviathanSubcommand(
+        String permission,
+        PermissionDefault permissionDefault
+    ) {
         this(new Permission(permission, permissionDefault));
     }
 

@@ -13,7 +13,8 @@ import java.lang.management.ManagementFactory;
 public final class JitMetrics {
 
     private static final MetricRegistry REGISTRY = MetricRegistry.get();
-    private static final CompilationMXBean COMPILATION_BEAN = ManagementFactory.getCompilationMXBean();
+    private static final CompilationMXBean COMPILATION_BEAN =
+        ManagementFactory.getCompilationMXBean();
 
     private final MetricRegistry.Gauge<Long> totalCompilationTimeMs;
 
