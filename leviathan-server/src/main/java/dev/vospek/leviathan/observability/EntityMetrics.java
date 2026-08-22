@@ -5,9 +5,9 @@ import java.util.concurrent.atomic.AtomicLong;
 /**
  * 实体 / 模拟指标收集器（骨架）
  * <p>
- * 注册 Wave 5 实体层指标。数据来源为 NMS Entity / EntityTick 级别
- * region 化 region tick 路径（当前工作树无应用化 region tick 源码），
- * 故本类仅暴露 setter 与直方图，由后续源码应用后打点。
+ * 注册 Wave 5 实体层指标。数据来源为 NMS 实体 tick 与碰撞检测路径
+ * （当前工作树无应用化 NMS 源码），故本类仅暴露 setter 与直方图，
+ * 由后续源码应用后在实体 tick / 碰撞路径打点。
  * <p>
  * 对应 Phase 1-E (W5-01 DAB / W5-02 Hopper-Item-XP / W5-03 Collision) 可观测面
  */

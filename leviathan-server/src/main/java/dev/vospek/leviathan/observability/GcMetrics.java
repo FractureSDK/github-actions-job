@@ -24,6 +24,8 @@ public final class GcMetrics {
     private final List<String> gcNames = new ArrayList<>();
     private final List<MetricRegistry.Gauge<Long>> gcCounts = new ArrayList<>();
     private final List<MetricRegistry.Gauge<Long>> gcTimes = new ArrayList<>();
+    private final String gcType;
+    private final List<String> gcArguments;
 
     private GcMetrics() {
         for (GarbageCollectorMXBean bean : GC_BEANS) {
@@ -36,6 +38,10 @@ public final class GcMetrics {
                 "gc." + name + ".time_ms", bean::getCollectionTime
             ));
         }
+        // GC 实现与 JVM 启动参数在运行期不变，构造时检测一次并缓存，
+        // 避免诊断日志周期性重复扫描 MXBean 列表
+        this.gcType = detectGcType();
+        this.gcArguments = List.copyOf(extractGcArguments());
     }
 
     private static final class Holder {
@@ -49,7 +55,7 @@ public final class GcMetrics {
     // ==================== 便捷查询 ====================
 
     public String getGcType() {
-        return detectGcType();
+        return gcType;
     }
 
     public List<String> getGcNames() {
@@ -69,7 +75,7 @@ public final class GcMetrics {
     }
 
     public List<String> getGcParameters() {
-        return extractGcArguments();
+        return gcArguments;
     }
 
     // ==================== 内部检测 ====================

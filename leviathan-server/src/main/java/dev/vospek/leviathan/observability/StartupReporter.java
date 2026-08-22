@@ -37,7 +37,7 @@ public final class StartupReporter {
      */
     public static void report() {
         LeviathanConfig.LOGGER.info("━━━━━━━━━━━━━ Leviathan Startup Report ━━━━━━━━━━━━━");
-        LeviathanConfig.LOGGER.info("{}", buildReport().replaceAll("\n", "\n  "));
+        LeviathanConfig.LOGGER.info("{}", buildReport().replace("\n", "\n  "));
         LeviathanConfig.LOGGER.info("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
     }
 

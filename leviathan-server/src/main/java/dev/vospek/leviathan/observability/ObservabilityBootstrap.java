@@ -84,7 +84,7 @@ public final class ObservabilityBootstrap {
             try {
                 syncMetrics();
             } catch (Exception e) {
-                LeviathanConfig.LOGGER.warn("Failed to sync metrics: {}", e.getMessage());
+                LeviathanConfig.LOGGER.warn("Failed to sync metrics", e);
             }
         }, 5, 5, TimeUnit.SECONDS);
 
@@ -93,7 +93,7 @@ public final class ObservabilityBootstrap {
             try {
                 logDiagnostics();
             } catch (Exception e) {
-                LeviathanConfig.LOGGER.warn("Failed to log diagnostics: {}", e.getMessage());
+                LeviathanConfig.LOGGER.warn("Failed to log diagnostics", e);
             }
         }, 60, 60, TimeUnit.SECONDS);
     }

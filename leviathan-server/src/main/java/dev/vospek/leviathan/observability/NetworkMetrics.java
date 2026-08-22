@@ -34,10 +34,10 @@ public final class NetworkMetrics {
 
     private NetworkMetrics() {
         REGISTRY.gaugeLong("network.connection.count", this::getConnectionCount);
-        REGISTRY.gaugeLong("network.bytes_sent", () -> bytesSent.get());
-        REGISTRY.gaugeLong("network.bytes_received", () -> bytesReceived.get());
-        REGISTRY.gaugeLong("network.packets_sent", () -> packetsSent.get());
-        REGISTRY.gaugeLong("network.packets_received", () -> packetsReceived.get());
+        REGISTRY.gaugeLong("network.bytes_sent", bytesSent::get);
+        REGISTRY.gaugeLong("network.bytes_received", bytesReceived::get);
+        REGISTRY.gaugeLong("network.packets_sent", packetsSent::get);
+        REGISTRY.gaugeLong("network.packets_received", packetsReceived::get);
         REGISTRY.gaugeInt("network.compression.threshold_bytes", () -> compressionThreshold);
         REGISTRY.gaugeInt("network.compression.level", () -> compressionLevel);
         REGISTRY.gaugeLong("network.compression.zstd_enabled", () -> zstdEnabled);

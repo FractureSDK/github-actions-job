@@ -215,7 +215,7 @@ public final class MSPTCommand extends PermissionedLeviathanSubcommand {
     }
 
     private static List<Component> eval(long[] times) {
-        long min = Integer.MAX_VALUE;
+        long min = Long.MAX_VALUE;
         long max = 0L;
         long total = 0L;
         int count = 0;

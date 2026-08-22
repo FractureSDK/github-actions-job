@@ -156,8 +156,9 @@ public final class HardwareCapabilities {
     }
 
     private static boolean checkAVX2Support() {
-        // 运行时检查 JVM 是否支持 AVX2 相关内部优化
-        // 这里简单返回 true 表示现代 x86_64 CPU 通常支持
+        // 非 Linux 环境的启发式回退：x86_64 平台通常具备 AVX2。
+        // 精确检测依赖 /proc/cpuinfo 的 flags 列表（见 detectCPUFromProcCpuinfo），
+        // 此处不发起子进程或 JNI 查询，避免影响启动耗时
         String arch = System.getProperty("os.arch").toLowerCase(Locale.ROOT);
         return arch.contains("x86") || arch.contains("amd64");
     }
