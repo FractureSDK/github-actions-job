@@ -1,0 +1,167 @@
+From 17a2718663ad9aa2b94466740f439db37fe8e6e4 Mon Sep 17 00:00:00 2001
+From: Leviathan <leviathan@vospek.dev>
+Date: Sat, 22 Aug 2026 11:35:08 +0800
+Subject: [PATCH] W1-01 ZGC: launch parameter detection and advice
+
+Detects the active GC implementation and scans JVM startup flags for
+ZGC-related options. Prints one-time startup advice when ZGC is absent
+or heap sizing is suboptimal (-Xms == -Xmx, SoftMaxHeapSize).
+
+The actual JVM flags remain managed by launch scripts; this patch only
+observes and advises. Output can be disabled with
+-Dleviathan.zgc.advice=false.
+
+Acceptance dimensions tracked here: GC Pause baseline visibility,
+Startup advisory cost (none at runtime).
+---
+ .../dev/vospek/leviathan/jvm/ZgcSupport.java  | 137 ++++++++++++++++++
+ 1 file changed, 137 insertions(+)
+ create mode 100644 src/main/java/dev/vospek/leviathan/jvm/ZgcSupport.java
+
+diff --git a/src/main/java/dev/vospek/leviathan/jvm/ZgcSupport.java b/src/main/java/dev/vospek/leviathan/jvm/ZgcSupport.java
+new file mode 100644
+index 0000000..5d8d0af
+--- /dev/null
++++ b/src/main/java/dev/vospek/leviathan/jvm/ZgcSupport.java
+@@ -0,0 +1,137 @@
++package dev.vospek.leviathan.jvm;
++
++import java.lang.management.GarbageCollectorMXBean;
++import java.lang.management.ManagementFactory;
++import java.lang.management.RuntimeMXBean;
++import java.util.List;
++import java.util.Locale;
++import org.apache.logging.log4j.Logger;
++
++/**
++ * W1-01 (patch 0001): ZGC 启动参数检测与建议
++ * <p>
++ * 检测当前 GC 实现与 JVM 启动参数中的 ZGC 相关标志，并在未启用或配置
++ * 不佳时输出启动建议。实际 JVM 参数由启动脚本管理，本类不做任何强制。
++ * <p>
++ * 可通过系统属性 {@code -Dleviathan.zgc.advice=false} 关闭建议输出。
++ */
++public final class ZgcSupport {
++
++    private static final String ADVICE_PROPERTY = "leviathan.zgc.advice";
++
++    private volatile Boolean zgcEnabledCache;
++    private volatile String gcNameCache;
++
++    /**
++     * 当前生效的 GC 名称（基于 GarbageCollectorMXBean 归一化识别）
++     */
++    public String currentGcName() {
++        String cached = gcNameCache;
++        if (cached != null) {
++            return cached;
++        }
++        String detected = detectGcName();
++        gcNameCache = detected;
++        return detected;
++    }
++
++    /**
++     * ZGC 是否已启用（启动参数包含 -XX:+UseZGC 或 MXBean 识别为 ZGC）
++     */
++    public boolean isZgcEnabled() {
++        Boolean cached = zgcEnabledCache;
++        if (cached != null) {
++            return cached;
++        }
++        boolean enabled = hasUseZgcFlag() || "zgc".equals(currentGcName());
++        zgcEnabledCache = enabled;
++        return enabled;
++    }
++
++    /**
++     * 收集启动参数中所有以指定前缀开头的 -XX 参数（如 "-XX:+UseZGC"）
++     */
++    public List<String> findFlags(String prefix) {
++        String normalized = prefix.toLowerCase(Locale.ROOT);
++        return inputArguments().stream()
++            .filter(arg -> arg.toLowerCase(Locale.ROOT).startsWith(normalized))
++            .toList();
++    }
++
++    /**
++     * 启动时输出一次检测与建议（幂等，可安全重复调用）
++     */
++    public void logAdvice(Logger logger) {
++        if ("false".equalsIgnoreCase(System.getProperty(ADVICE_PROPERTY, "true"))) {
++            return;
++        }
++        String advice = buildAdvice();
++        if (advice.isEmpty()) {
++            logger.info("Leviathan ZGC: enabled, startup flags look reasonable");
++        } else {
++            logger.info("Leviathan ZGC: {}", advice);
++        }
++    }
++
++    /**
++     * 构造建议文本；ZGC 已启用且堆配置合理时返回空串
++     */
++    public String buildAdvice() {
++        if (isZgcEnabled()) {
++            List<String> heapFlags = findFlags("-xms");
++            List<String> softMax = findFlags("-xx:softmaxheapsize");
++            StringBuilder sb = new StringBuilder();
++            if (heapFlags.isEmpty()) {
++                sb.append("Consider setting -Xms == -Xmx for ZGC to avoid heap resize pauses; ");
++            }
++            if (softMax.isEmpty()) {
++                sb.append("consider -XX:SoftMaxHeapSize=<80% of Xmx>")
++                    .append(" to keep ZGC concurrent ahead of demand.");
++            }
++            return sb.toString().trim();
++        }
++        return "ZGC is not enabled (current GC: " + currentGcName()
++            + "). To evaluate W1-01 add '-XX:+UseZGC' to startup flags and re-baseline "
++            + "GC Pause / Allocation Rate / Heap / MSPT / CPU / Startup.";
++    }
++
++    private boolean hasUseZgcFlag() {
++        return !findFlags("-xx:+usezc").isEmpty();
++    }
++
++    private static List<String> inputArguments() {
++        RuntimeMXBean runtime = ManagementFactory.getRuntimeMXBean();
++        return runtime.getInputArguments();
++    }
++
++    private static String detectGcName() {
++        for (GarbageCollectorMXBean bean : ManagementFactory.getGarbageCollectorMXBeans()) {
++            String name = bean.getName();
++            if (name == null) {
++                continue;
++            }
++            String lower = name.toLowerCase(Locale.ROOT);
++            if (lower.contains("zgc") || lower.contains("zcollector")
++                || lower.contains("zgccycle")) {
++                return "zgc";
++            }
++            if (lower.contains("shenandoah")) {
++                return "shenandoah";
++            }
++            if (lower.contains("g1")) {
++                return "g1";
++            }
++            if (lower.contains("parnew") || lower.contains("concurrentmarksweep")
++                || lower.contains("cms")) {
++                return "cms";
++            }
++            if (lower.startsWith("ps") || lower.contains("parallel")) {
++                return "parallel";
++            }
++            if (lower.contains("copy") || lower.contains("marksweep")) {
++                return "serial";
++            }
++        }
++        return "unknown";
++    }
++}
+\ No newline at end of file
+-- 
+2.54.0.windows.1
+

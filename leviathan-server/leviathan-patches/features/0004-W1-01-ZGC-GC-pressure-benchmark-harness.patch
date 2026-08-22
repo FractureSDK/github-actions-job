@@ -1,0 +1,158 @@
+From c17cd55dedd34771b62586d3e97d7fa5fb64bed8 Mon Sep 17 00:00:00 2001
+From: Leviathan <leviathan@vospek.dev>
+Date: Sat, 22 Aug 2026 11:35:11 +0800
+Subject: [PATCH] W1-01 ZGC: GC pressure benchmark harness
+
+Standalone allocation-pressure harness (main() or programmatic run()):
+configurable churn rate and live-set size; reports allocation rate,
+GC count/time deltas, gc-time percent, post-GC heap. Not wired to
+server startup; intended for baseline vs W1-01 comparisons across
+GC Pause / Allocation Rate / Heap / CPU / Startup (never TPS alone).
+---
+ .../leviathan/jvm/GcPressureBenchmark.java    | 133 ++++++++++++++++++
+ 1 file changed, 133 insertions(+)
+ create mode 100644 src/main/java/dev/vospek/leviathan/jvm/GcPressureBenchmark.java
+
+diff --git a/src/main/java/dev/vospek/leviathan/jvm/GcPressureBenchmark.java b/src/main/java/dev/vospek/leviathan/jvm/GcPressureBenchmark.java
+new file mode 100644
+index 0000000..66b6d27
+--- /dev/null
++++ b/src/main/java/dev/vospek/leviathan/jvm/GcPressureBenchmark.java
+@@ -0,0 +1,133 @@
++package dev.vospek.leviathan.jvm;
++
++import java.util.ArrayList;
++import java.util.List;
++import java.util.Locale;
++import java.util.concurrent.atomic.AtomicLong;
++
++/**
++ * W1-01 (patch 0004): GC 压力基准
++ * <p>
++ * 通过可控的分配压力（短命小对象 + 可调存活集）度量 GC 行为：
++ * <ul>
++ *   <li>分配速率（线程分配字节差分）</li>
++ *   <li>GC 次数与耗时的增量</li>
++ *   <li>吞吐（有效工作时长占比）</li>
++ * </ul>
++ * <p>
++ * 不在服务器启动时自动运行；通过 {@link #main(String[])} 独立运行，
++ * 或由后续命令/测试框架调用 {@link #run(int, int, int)}。
++ * 验收时必须同时记录 GC Pause / Allocation Rate / Heap / MSPT / CPU / Startup，
++ * 禁止只看 TPS。
++ */
++public final class GcPressureBenchmark {
++
++    private final ZgcMetrics metrics = new ZgcMetrics();
++
++    /**
++     * 基准结果快照
++     */
++    public record Result(
++        int iterations,
++        int liveSetMb,
++        long allocRateBytesPerSec,
++        long gcCountDelta,
++        long gcTimeMsDelta,
++        long elapsedMs,
++        double gcTimePercent,
++        long heapUsedAfterGcBytes
++    ) {
++    }
++
++    /**
++     * 运行压力基准。
++     *
++     * @param iterations 分配轮数（每轮分配 churnMb MB 的短命对象）
++     * @param churnMb    每轮产生的垃圾字节数（近似值）
++     * @param liveSetMb  跨轮存活的引用集大小（MB），模拟常驻堆
++     */
++    public Result run(int iterations, int churnMb, int liveSetMb) {
++        List<byte[]> liveSet = new ArrayList<>();
++        for (int i = 0; i < liveSetMb; i++) {
++            liveSet.add(new byte[1024 * 1024]);
++        }
++
++        AtomicLong sink = new AtomicLong();
++        long startNanos = System.nanoTime();
++        long gcCountBefore = metrics.totalCollectionCount();
++        long gcTimeBefore = metrics.totalCollectionTimeMs();
++        // 建立分配速率基线
++        metrics.allocationRateBytesPerSec();
++
++        byte[] chunk = new byte[64 * 1024];
++        for (int i = 0; i < iterations; i++) {
++            int remaining = churnMb * 1024 * 1024;
++            while (remaining > 0) {
++                // 触碰数据避免被立即标量替换，同时保持短命
++                chunk[(i + remaining) & (chunk.length - 1)] = (byte) i;
++                sink.addAndGet(chunk[(i * 7) & (chunk.length - 1)]);
++                remaining -= chunk.length;
++            }
++            if (!liveSet.isEmpty()) {
++                // 轮换存活集中的一页，制造轻微晋升压力
++                liveSet.set(i % liveSet.size(), new byte[1024 * 1024]);
++            }
++        }
++
++        double allocRate = metrics.allocationRateBytesPerSec();
++        long endNanos = System.nanoTime();
++        long gcCountAfter = metrics.totalCollectionCount();
++        long gcTimeAfter = metrics.totalCollectionTimeMs();
++        long elapsedMs = (endNanos - startNanos) / 1_000_000L;
++        long gcTimeDelta = Math.max(0L, gcTimeAfter - gcTimeBefore);
++
++        return new Result(
++            iterations,
++            liveSetMb,
++            (long) allocRate,
++            Math.max(0L, gcCountAfter - gcCountBefore),
++            gcTimeDelta,
++            elapsedMs,
++            elapsedMs > 0 ? (gcTimeDelta * 100.0) / elapsedMs : 0.0,
++            metrics.heapUsedAfterGc()
++        );
++    }
++
++    /**
++     * 独立运行入口：java -cp ... dev.vospek.leviathan.jvm.GcPressureBenchmark
++     */
++    public static void main(String[] args) {
++        int iterations = argOrDefault(args, 0, 64);
++        int churnMb = argOrDefault(args, 1, 128);
++        int liveSetMb = argOrDefault(args, 2, 256);
++
++        ZgcSupport support = new ZgcSupport();
++        System.out.printf(Locale.ROOT, "current GC: %s%n", support.currentGcName());
++        System.out.printf(Locale.ROOT,
++            "running GC pressure benchmark: iterations=%d churnMb=%d liveSetMb=%d%n",
++            iterations, churnMb, liveSetMb);
++
++        Result result = new GcPressureBenchmark().run(iterations, churnMb, liveSetMb);
++        System.out.printf(Locale.ROOT,
++            "alloc=%.2f MB/s gcCount=+%d gcTime=+%dms (%.2f%% of %dms) heapAfterGc=%dKB%n",
++            result.allocRateBytesPerSec() / (1024.0 * 1024),
++            result.gcCountDelta(),
++            result.gcTimeMsDelta(),
++            result.gcTimePercent(),
++            result.elapsedMs(),
++            result.heapUsedAfterGcBytes() < 0
++                ? -1L
++                : result.heapUsedAfterGcBytes() / 1024);
++    }
++
++    private static int argOrDefault(String[] args, int index, int defVal) {
++        if (args != null && args.length > index) {
++            try {
++                return Integer.parseInt(args[index]);
++            } catch (NumberFormatException ignored) {
++                return defVal;
++            }
++        }
++        return defVal;
++    }
++}
+\ No newline at end of file
+-- 
+2.54.0.windows.1
+

@@ -24,6 +24,15 @@
 +            patchesDir = rootDirectory.dir("leviathan-server/paper-patches")
 +            outputDir = rootDirectory.dir("paper-server")
 +        }
++
++        // Leviathan start - W1-01 dedicated patch series
++        upstream.patchDir("leviathanFeatures") {
++            upstreamPath = "paper-server"
++            excludes = setOf("src/minecraft", "patches", "build.gradle.kts")
++            patchesDir = rootDirectory.dir("leviathan-server/leviathan-patches")
++            outputDir = rootDirectory.dir("paper-server")
++        }
++        // Leviathan end - W1-01 dedicated patch series
 +    }
 +
 +    activeFork = leviathan

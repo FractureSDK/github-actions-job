@@ -1,0 +1,110 @@
+From 0aedfed3a8f434dd82cae2c559625fac4f464c18 Mon Sep 17 00:00:00 2001
+From: Leviathan <leviathan@vospek.dev>
+Date: Sat, 22 Aug 2026 11:35:12 +0800
+Subject: [PATCH] W1-01 ZGC: ZGC tuning startup report
+
+Aggregates patches 0001-0004 into a single startup log report covering
+the acceptance dimensions observable in-process, plus actionable
+advice lines. Depends only on earlier patches of this series and the JDK.
+---
+ .../vospek/leviathan/jvm/ZgcTuningReport.java | 87 +++++++++++++++++++
+ 1 file changed, 87 insertions(+)
+ create mode 100644 src/main/java/dev/vospek/leviathan/jvm/ZgcTuningReport.java
+
+diff --git a/src/main/java/dev/vospek/leviathan/jvm/ZgcTuningReport.java b/src/main/java/dev/vospek/leviathan/jvm/ZgcTuningReport.java
+new file mode 100644
+index 0000000..e866839
+--- /dev/null
++++ b/src/main/java/dev/vospek/leviathan/jvm/ZgcTuningReport.java
+@@ -0,0 +1,87 @@
++package dev.vospek.leviathan.jvm;
++
++import java.util.Locale;
++import org.apache.logging.log4j.Logger;
++
++/**
++ * W1-01 (patch 0005): ZGC 调优启动报告
++ * <p>
++ * 汇总本系列前四个 patch 的能力（参数检测、GC 指标、显式 GC 策略），
++ * 在启动时输出一次面向验收维度的摘要：
++ * GC Pause / Allocation Rate / Heap Usage / 显式 GC 策略。
++ * <p>
++ * MSPT / CPU / Startup 由既有 Observability 与启动计时覆盖，此处不重复采集。
++ */
++public final class ZgcTuningReport {
++
++    private final ZgcSupport support;
++    private final ZgcMetrics metrics;
++    private final SystemGcControl gcControl;
++
++    public ZgcTuningReport() {
++        this(new ZgcSupport(), new ZgcMetrics(), new SystemGcControl());
++    }
++
++    public ZgcTuningReport(ZgcSupport support, ZgcMetrics metrics, SystemGcControl gcControl) {
++        this.support = support;
++        this.metrics = metrics;
++        this.gcControl = gcControl;
++    }
++
++    /**
++     * 构造多行报告文本（每行一个验收维度）
++     */
++    public String buildReport() {
++        StringBuilder sb = new StringBuilder(512);
++        sb.append("gc=").append(support.currentGcName());
++        sb.append(" | zgcEnabled=").append(support.isZgcEnabled());
++        sb.append(" | collections=").append(metrics.totalCollectionCount());
++        sb.append(" | totalPauseMs=").append(metrics.totalCollectionTimeMs());
++        long heapAfterGc = metrics.heapUsedAfterGc();
++        sb.append(" | heapAfterGc=")
++            .append(heapAfterGc < 0 ? "n/a" : formatMb(heapAfterGc) + "MB");
++        sb.append(" | directMem=")
++            .append(metrics.directMemoryUsed() < 0
++                ? "n/a" : formatMb(metrics.directMemoryUsed()) + "MB");
++        double rate = metrics.allocationRateBytesPerSec();
++        sb.append(" | allocRate=")
++            .append(rate <= 0 ? "n/a(first-sample)"
++                : String.format(Locale.ROOT, "%.1fMB/s", rate / (1024.0 * 1024)));
++        String gcAdvice = gcControl.buildAdvice();
++        if (!gcAdvice.isEmpty()) {
++            sb.append(" | explicitGc: ").append(gcAdvice);
++        }
++        return sb.toString();
++    }
++
++    /**
++     * 启动时输出一次报告；ZGC 未启用时附带参数建议
++     */
++    public void logReport(Logger logger) {
++        logger.info("━━━ Leviathan ZGC Tuning Report ━━━");
++        logger.info("{}", buildReport());
++        String advice = support.buildAdvice();
++        if (!advice.isEmpty()) {
++            logger.info("Leviathan ZGC advice: {}", advice);
++        }
++    }
++
++    /**
++     * 供命令/诊断周期复用的组件访问器
++     */
++    public ZgcSupport support() {
++        return support;
++    }
++
++    public ZgcMetrics metrics() {
++        return metrics;
++    }
++
++    public SystemGcControl gcControl() {
++        return gcControl;
++    }
++
++    private static String formatMb(long bytes) {
++        return String.valueOf(bytes / (1024L * 1024));
++    }
++}
+\ No newline at end of file
+-- 
+2.54.0.windows.1
+

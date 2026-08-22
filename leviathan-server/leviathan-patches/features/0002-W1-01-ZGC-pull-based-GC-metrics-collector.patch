@@ -1,0 +1,165 @@
+From aeec8ad102e26d604702d9fadca252e01d43456a Mon Sep 17 00:00:00 2001
+From: Leviathan <leviathan@vospek.dev>
+Date: Sat, 22 Aug 2026 11:35:09 +0800
+Subject: [PATCH] W1-01 ZGC: pull-based GC metrics collector
+
+Adds a dependency-free, thread-less metrics collector sampled on read:
+per-collector count/time, post-GC heap survival, direct-buffer usage,
+and allocation-rate estimation via lazy thread-allocated-byte deltas.
+
+Feeds the W1-01 acceptance dimensions: Allocation Rate, Heap Usage,
+GC Pause totals.
+---
+ .../dev/vospek/leviathan/jvm/ZgcMetrics.java  | 139 ++++++++++++++++++
+ 1 file changed, 139 insertions(+)
+ create mode 100644 src/main/java/dev/vospek/leviathan/jvm/ZgcMetrics.java
+
+diff --git a/src/main/java/dev/vospek/leviathan/jvm/ZgcMetrics.java b/src/main/java/dev/vospek/leviathan/jvm/ZgcMetrics.java
+new file mode 100644
+index 0000000..39febea
+--- /dev/null
++++ b/src/main/java/dev/vospek/leviathan/jvm/ZgcMetrics.java
+@@ -0,0 +1,139 @@
++package dev.vospek.leviathan.jvm;
++
++import com.sun.management.ThreadMXBean;
++import java.lang.management.BufferPoolMXBean;
++import java.lang.management.GarbageCollectorMXBean;
++import java.lang.management.ManagementFactory;
++import java.lang.management.MemoryPoolMXBean;
++import java.lang.management.MemoryType;
++import java.util.LinkedHashMap;
++import java.util.List;
++import java.util.Map;
++import java.util.concurrent.atomic.AtomicLong;
++
++/**
++ * W1-01 (patch 0002): 拉取式 GC 指标收集器
++ * <p>
++ * 无后台线程、无外部依赖：所有指标在读取时按需采样。
++ * <ul>
++ *   <li>分 GC 的 count / 累计耗时（GarbageCollectorMXBean）</li>
++ *   <li>GC 后老年代存活堆量（MemoryPoolMXBean collection usage）</li>
++ *   <li>直接内存占用（BufferPoolMXBean "direct"）</li>
++ *   <li>分配速率估算（线程分配字节数的惰性差分）</li>
++ * </ul>
++ */
++public final class ZgcMetrics {
++
++    private static final List<GarbageCollectorMXBean> GC_BEANS =
++        ManagementFactory.getGarbageCollectorMXBeans();
++    private static final List<MemoryPoolMXBean> POOL_BEANS =
++        ManagementFactory.getMemoryPoolMXBeans();
++
++    private final AtomicLong lastAllocBytes = new AtomicLong(-1);
++    private final AtomicLong lastSampleNanos = new AtomicLong(-1);
++    private final AtomicLong cachedRateBps = new AtomicLong(0);
++
++    /**
++     * 每个 GC 收集器的 {count, timeMs} 快照
++     */
++    public Map<String, long[]> collectorSnapshots() {
++        Map<String, long[]> out = new LinkedHashMap<>();
++        for (GarbageCollectorMXBean bean : GC_BEANS) {
++            out.put(bean.getName(), new long[] {
++                bean.getCollectionCount(), bean.getCollectionTime()});
++        }
++        return out;
++    }
++
++    /**
++     * 全部收集器的累计回收次数与累计耗时（毫秒）
++     */
++    public long totalCollectionCount() {
++        long total = 0L;
++        for (GarbageCollectorMXBean bean : GC_BEANS) {
++            long count = bean.getCollectionCount();
++            if (count >= 0) {
++                total += count;
++            }
++        }
++        return total;
++    }
++
++    public long totalCollectionTimeMs() {
++        long total = 0L;
++        for (GarbageCollectorMXBean bean : GC_BEANS) {
++            long time = bean.getCollectionTime();
++            if (time >= 0) {
++                total += time;
++            }
++        }
++        return total;
++    }
++
++    /**
++     * 最近一次 GC 后各池存活的堆总量（字节）；无数据返回 -1
++     */
++    public long heapUsedAfterGc() {
++        long total = -1L;
++        for (MemoryPoolMXBean pool : POOL_BEANS) {
++            if (pool.getType() != MemoryType.HEAP || pool.getCollectionUsage() == null) {
++                continue;
++            }
++            long used = pool.getCollectionUsage().getUsed();
++            if (used > 0) {
++                total = Math.max(total, 0L) + used;
++            }
++        }
++        return total;
++    }
++
++    /**
++     * 直接缓冲区内存占用（字节）；不可用返回 -1
++     */
++    public long directMemoryUsed() {
++        for (BufferPoolMXBean pool : ManagementFactory.getPlatformMXBeans(BufferPoolMXBean.class)) {
++            if ("direct".equalsIgnoreCase(pool.getName())) {
++                return pool.getMemoryUsed();
++            }
++        }
++        return -1L;
++    }
++
++    /**
++     * 分配速率估算（字节/秒），基于两次调用之间的线程分配字节差分；
++     * 首次调用仅建立基线并返回 0
++     */
++    public double allocationRateBytesPerSec() {
++        ThreadMXBean threadBean = ManagementFactory.getPlatformMXBean(ThreadMXBean.class);
++        if (threadBean == null || !threadBean.isThreadAllocatedMemorySupported()) {
++            return -1.0;
++        }
++        long now = System.nanoTime();
++        long[] allIds = threadBean.getAllThreadIds();
++        long bytes = 0L;
++        for (long id : allIds) {
++            long allocated = threadBean.getThreadAllocatedBytes(id);
++            if (allocated >= 0) {
++                bytes += allocated;
++            }
++        }
++
++        long prevNanos = lastSampleNanos.getAndSet(now);
++        long prevBytes = lastAllocBytes.getAndSet(bytes);
++        if (prevNanos < 0 || prevBytes < 0 || now <= prevNanos) {
++            return 0.0;
++        }
++
++        long delta = Math.max(0L, bytes - prevBytes);
++        double rate = delta / ((now - prevNanos) / 1_000_000_000.0);
++        cachedRateBps.set((long) rate);
++        return rate;
++    }
++
++    /**
++     * 上一次成功估算的分配速率（字节/秒），未采样过返回 0
++     */
++    public long lastAllocationRateBytesPerSec() {
++        return cachedRateBps.get();
++    }
++}
+\ No newline at end of file
+-- 
+2.54.0.windows.1
+

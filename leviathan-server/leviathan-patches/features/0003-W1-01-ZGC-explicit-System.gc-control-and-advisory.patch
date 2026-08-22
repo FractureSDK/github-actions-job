@@ -1,0 +1,112 @@
+From fd47d29c433fb2bddff44c92aca11266408be385 Mon Sep 17 00:00:00 2001
+From: Leviathan <leviathan@vospek.dev>
+Date: Sat, 22 Aug 2026 11:35:10 +0800
+Subject: [PATCH] W1-01 ZGC: explicit System.gc control and advisory
+
+Detects DisableExplicitGC / ExplicitGCInvokesConcurrent, advises the
+concurrent variant for ZGC deployments, and provides requestGc() which
+records manual trigger attempts and reports whether the JVM honored
+them.
+---
+ .../vospek/leviathan/jvm/SystemGcControl.java | 88 +++++++++++++++++++
+ 1 file changed, 88 insertions(+)
+ create mode 100644 src/main/java/dev/vospek/leviathan/jvm/SystemGcControl.java
+
+diff --git a/src/main/java/dev/vospek/leviathan/jvm/SystemGcControl.java b/src/main/java/dev/vospek/leviathan/jvm/SystemGcControl.java
+new file mode 100644
+index 0000000..f69f856
+--- /dev/null
++++ b/src/main/java/dev/vospek/leviathan/jvm/SystemGcControl.java
+@@ -0,0 +1,88 @@
++package dev.vospek.leviathan.jvm;
++
++import java.lang.management.ManagementFactory;
++import java.lang.management.RuntimeMXBean;
++import java.util.List;
++import java.util.Locale;
++import java.util.concurrent.atomic.AtomicLong;
++import org.apache.logging.log4j.Logger;
++
++/**
++ * W1-01 (patch 0003): 显式 System.gc 控制
++ * <p>
++ * 检测 JVM 层的显式 GC 策略标志，并提供受控的手动触发入口：
++ * <ul>
++ *   <li>{@code -XX:+DisableExplicitGC}：完全忽略显式 GC（可能引发 direct memory 回收风险）</li>
++ *   <li>{@code -XX:+ExplicitGCInvokesConcurrent}：显式 GC 转为并发周期（推荐）</li>
++ * </ul>
++ * <p>
++ * 本类不做字节码拦截；对 ZGC 而言 System.gc 触发的是 Full STSTW 周期，
++ * 因此推荐策略是 {@link #isExplicitGcInvokesConcurrent()}。
++ */
++public final class SystemGcControl {
++
++    private final AtomicLong manualTriggerCount = new AtomicLong();
++
++    /**
++     * 是否设置了 -XX:+DisableExplicitGC
++     */
++    public boolean isExplicitGcDisabled() {
++        return hasFlag("-xx:+disableexplicitgc");
++    }
++
++    /**
++     * 是否设置了 -XX:+ExplicitGCInvokesConcurrent
++     */
++    public boolean isExplicitGcInvokesConcurrent() {
++        return hasFlag("-xx:+explicitgcinvokesconcurrent");
++    }
++
++    /**
++     * 策略建议：DisableExplicitGC 会阻止 direct memory 统计回收，
++     * 推荐改用 ExplicitGCInvokesConcurrent
++     */
++    public String buildAdvice() {
++        if (isExplicitGcDisabled()) {
++            return "DisableExplicitGC is set; consider '-XX:+ExplicitGCInvokesConcurrent' instead, "
++                + "because full DisableExplicitGC can starve direct-memory reclamation.";
++        }
++        if (!isExplicitGcInvokesConcurrent()) {
++            return "Neither DisableExplicitGC nor ExplicitGCInvokesConcurrent is set; "
++                + "'-XX:+ExplicitGCInvokesConcurrent' keeps explicit GC concurrent under ZGC.";
++        }
++        return "";
++    }
++
++    /**
++     * 受控的手动 GC 请求：记录调用并按当前 JVM 策略执行。
++     * 返回是否真正触发了 GC（被 DisableExplicitGC 忽略时返回 false）
++     */
++    public boolean requestGc(Logger logger, String reason) {
++        manualTriggerCount.incrementAndGet();
++        if (isExplicitGcDisabled()) {
++            logger.info("Leviathan System.gc request '{}' ignored (DisableExplicitGC)", reason);
++            return false;
++        }
++        logger.info("Leviathan System.gc requested: {}", reason);
++        Runtime.getRuntime().gc();
++        return true;
++    }
++
++    /**
++     * 手动触发计数（观测用）
++     */
++    public long manualTriggerCount() {
++        return manualTriggerCount.get();
++    }
++
++    private static boolean hasFlag(String prefix) {
++        RuntimeMXBean runtime = ManagementFactory.getRuntimeMXBean();
++        List<String> args = runtime.getInputArguments();
++        for (String arg : args) {
++            if (arg.toLowerCase(Locale.ROOT).startsWith(prefix)) {
++                return true;
++            }
++        }
++        return false;
++    }
++}
+\ No newline at end of file
+-- 
+2.54.0.windows.1
+
