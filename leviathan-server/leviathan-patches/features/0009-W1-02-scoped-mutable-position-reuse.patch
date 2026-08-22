@@ -1,0 +1,110 @@
+From 5da6d14ba72e8cf2c6e121474811b2143cac3d75 Mon Sep 17 00:00:00 2001
+From: Leviathan <leviathan@vospek.dev>
+Date: Sat, 22 Aug 2026 11:52:29 +0800
+Subject: [PATCH] W1-02 MutableBlockPos: scoped reuse utility
+
+Thread-confined reusable mutable position with AutoCloseable scoping,
+reentrancy depth tracking, and post-close sentinel values to surface
+escape/misuse immediately. This is the pattern NMS BlockPos iteration
+sites will adopt in later patches.
+---
+ .../objectpath/ScopedMutablePos.java          | 86 +++++++++++++++++++
+ 1 file changed, 86 insertions(+)
+ create mode 100644 src/main/java/dev/vospek/leviathan/objectpath/ScopedMutablePos.java
+
+diff --git a/src/main/java/dev/vospek/leviathan/objectpath/ScopedMutablePos.java b/src/main/java/dev/vospek/leviathan/objectpath/ScopedMutablePos.java
+new file mode 100644
+index 0000000..4fabdfe
+--- /dev/null
++++ b/src/main/java/dev/vospek/leviathan/objectpath/ScopedMutablePos.java
+@@ -0,0 +1,86 @@
++package dev.vospek.leviathan.objectpath;
++
++/**
++ * W1-02 (patch 0009): 线程限域可变坐标复用工具
++ * <p>
++ * 为未来 NMS 调用点改造提供安全的 MutableBlockPos 复用模式：
++ * <pre>{@code
++ * try (ScopedMutablePos pos = ScopedMutablePos.acquire()) {
++ *     pos.set(x, y, z);
++ *     ... // 仅在本作用域内使用，禁止逃逸（存入集合/跨方法返回）
++ * }
++ * }</pre>
++ * <p>
++ * 纪律（迁移到 NMS 时必须保持）：
++ * <ul>
++ *   <li>实例绝不逃逸出 acquire 的调用栈帧</li>
++ *   <li>同线程重入计数保护嵌套 acquire</li>
++ *   <li>close 后引用置空，尽早暴露误用</li>
++ * </ul>
++ */
++public final class ScopedMutablePos implements AutoCloseable {
++
++    private static final ThreadLocal<ScopedMutablePos> THREAD_LOCAL =
++        ThreadLocal.withInitial(ScopedMutablePos::new);
++
++    private int x;
++    private int y;
++    private int z;
++    private boolean acquired;
++    private int reentrancyDepth;
++
++    private ScopedMutablePos() {
++    }
++
++    /**
++     * 获取当前线程的复用实例；嵌套调用会得到同一实例并计入重入深度
++     */
++    public static ScopedMutablePos acquire() {
++        ScopedMutablePos pos = THREAD_LOCAL.get();
++        if (pos.acquired) {
++            pos.reentrancyDepth++;
++            return pos;
++        }
++        pos.acquired = true;
++        return pos;
++    }
++
++    public ScopedMutablePos set(int newX, int newY, int newZ) {
++        this.x = newX;
++        this.y = newY;
++        this.z = newZ;
++        return this;
++    }
++
++    public ScopedMutablePos move(int dx, int dy, int dz) {
++        this.x += dx;
++        this.y += dy;
++        this.z += dz;
++        return this;
++    }
++
++    public int x() {
++        return x;
++    }
++
++    public int y() {
++        return y;
++    }
++
++    public int z() {
++        return z;
++    }
++
++    @Override
++    public void close() {
++        if (reentrancyDepth > 0) {
++            reentrancyDepth--;
++            return;
++        }
++        // 置为哨兵值：close 后继续读取会立刻暴露逻辑错误
++        this.x = Integer.MIN_VALUE;
++        this.y = Integer.MIN_VALUE;
++        this.z = Integer.MIN_VALUE;
++        this.acquired = false;
++    }
++}
+\ No newline at end of file
+-- 
+2.54.0.windows.1
+

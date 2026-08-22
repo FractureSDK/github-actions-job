@@ -1,0 +1,174 @@
+From dbde6fc8d826b0334bada5740af22f63869e65b7 Mon Sep 17 00:00:00 2001
+From: Leviathan <leviathan@vospek.dev>
+Date: Sat, 22 Aug 2026 11:52:28 +0800
+Subject: [PATCH] W1-02 ChunkPos: packed-long key benchmark
+
+Stage 3 of W1-02 (ChunkPos). Compares per-step coordinate-object keys,
+boxed Long keys, and packed-long keys with a minimal open-addressed map;
+packed keys eliminate object creation entirely and are the recommended
+migration shape for ticket/chunk-map collections.
+---
+ .../objectpath/ChunkPosPackBenchmark.java     | 150 ++++++++++++++++++
+ 1 file changed, 150 insertions(+)
+ create mode 100644 src/main/java/dev/vospek/leviathan/objectpath/ChunkPosPackBenchmark.java
+
+diff --git a/src/main/java/dev/vospek/leviathan/objectpath/ChunkPosPackBenchmark.java b/src/main/java/dev/vospek/leviathan/objectpath/ChunkPosPackBenchmark.java
+new file mode 100644
+index 0000000..2fa0325
+--- /dev/null
++++ b/src/main/java/dev/vospek/leviathan/objectpath/ChunkPosPackBenchmark.java
+@@ -0,0 +1,150 @@
++package dev.vospek.leviathan.objectpath;
++
++import dev.vospek.leviathan.jvm.ZgcMetrics;
++import java.util.Arrays;
++import java.util.HashMap;
++import java.util.Locale;
++import java.util.Map;
++
++/**
++ * W1-02 (patch 0008): ChunkPos 阶段热路径对象创建基准
++ * <p>
++ * 区块坐标最有效的"零对象化"手段是 long 打包键。
++ * 本基准对比三种 Map 键策略的分配与 GC 表现：
++ * <ol>
++ *   <li>每步新建坐标对象作为键</li>
++ *   <li>装箱 Long 键（Long.valueOf 路径）</li>
++ *   <li>原始 long 打包键配合专用开放寻址映射</li>
++ * </ol>
++ * 迁移目标：NMS ChunkPos 键控集合（ticket、chunk map 等）。
++ */
++public final class ChunkPosPackBenchmark {
++
++    private final ZgcMetrics metrics = new ZgcMetrics();
++
++    /**
++     * 基准结果
++     */
++    public record Result(
++        String mode,
++        double allocRateBytesPerSec,
++        long gcTimeMsDelta,
++        long elapsedMs
++    ) {
++    }
++
++    record ChunkKey(int x, int z) {
++    }
++
++    /**
++     * 极简 long->long 开放寻址映射（容量 2 的幂，线性探测），避免装箱
++     */
++    static final class LongLongMap {
++        private final long[] keys;
++        private final long[] values;
++        private final int mask;
++        private static final long EMPTY = Long.MIN_VALUE;
++
++        LongLongMap(int capacityPow2) {
++            this.keys = new long[capacityPow2];
++            this.values = new long[capacityPow2];
++            this.mask = capacityPow2 - 1;
++            Arrays.fill(keys, EMPTY);
++        }
++
++        void put(long key, long value) {
++            int idx = mix(key) & mask;
++            while (true) {
++                long k = keys[idx];
++                if (k == EMPTY || k == key) {
++                    keys[idx] = key;
++                    values[idx] = value;
++                    return;
++                }
++                idx = (idx + 1) & mask;
++            }
++        }
++
++        long get(long key) {
++            int idx = mix(key) & mask;
++            while (true) {
++                long k = keys[idx];
++                if (k == key) {
++                    return values[idx];
++                }
++                if (k == EMPTY) {
++                    return -1L;
++                }
++                idx = (idx + 1) & mask;
++            }
++        }
++
++        private static int mix(long key) {
++            long h = key * 0x9E3779B97F4A7C15L;
++            return (int) (h ^ (h >>> 32));
++        }
++    }
++
++    static long pack(int x, int z) {
++        return ((long) x & 0xFFFFFFFFL) << 32 | ((long) z & 0xFFFFFFFFL);
++    }
++
++    static int unpackX(long packed) {
++        return (int) (packed >> 32);
++    }
++
++    static int unpackZ(long packed) {
++        return (int) packed;
++    }
++
++    /**
++     * @param lookups 查询/写入次数
++     * @param mode    "object" | "boxed" | "primitive"
++     */
++    public Result run(long lookups, String mode) {
++        Map<ChunkKey, Long> objectMap = new HashMap<>();
++        Map<Long, Long> boxedMap = new HashMap<>();
++        LongLongMap primitiveMap = new LongLongMap(1 << 16);
++
++        long startNanos = System.nanoTime();
++        metrics.allocationRateBytesPerSec();
++        long gcTimeBefore = metrics.totalCollectionTimeMs();
++
++        for (long i = 0; i < lookups; i++) {
++            int x = (int) ((i >> 4) & 0x3FF);
++            int z = (int) ((i >> 14) & 0x3FF);
++            switch (mode) {
++                case "object" -> objectMap.put(new ChunkKey(x, z), i);
++                case "boxed" -> boxedMap.put(pack(x, z), i);
++                default -> primitiveMap.put(pack(x, z), i);
++            }
++        }
++
++        double allocRate = metrics.allocationRateBytesPerSec();
++        long endNanos = System.nanoTime();
++        return new Result(
++            mode,
++            allocRate,
++            Math.max(0L, metrics.totalCollectionTimeMs() - gcTimeBefore),
++            (endNanos - startNanos) / 1_000_000L
++        );
++    }
++
++    /**
++     * 三模式对照行（阶段 Gate 记录用）
++     */
++    public String compareLine(long lookups) {
++        StringBuilder sb = new StringBuilder("chunkpos pack: ");
++        for (String mode : new String[] {"object", "boxed", "primitive"}) {
++            Result r = run(lookups, mode);
++            sb.append(String.format(Locale.ROOT, "%s=%.1fMB/s/%dms ",
++                r.mode(), r.allocRateBytesPerSec() / (1024.0 * 1024), r.gcTimeMsDelta()));
++        }
++        return sb.toString().trim();
++    }
++
++    public static void main(String[] args) {
++        long lookups = args != null && args.length > 0 ? Long.parseLong(args[0]) : 4_000_000L;
++        System.out.println(new ChunkPosPackBenchmark().compareLine(lookups));
++    }
++}
+\ No newline at end of file
+-- 
+2.54.0.windows.1
+

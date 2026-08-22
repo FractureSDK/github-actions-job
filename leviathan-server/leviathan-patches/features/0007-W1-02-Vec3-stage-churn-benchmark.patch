@@ -1,0 +1,131 @@
+From 3ab3558d05af1cbbc1a26f626498ba063891496a Mon Sep 17 00:00:00 2001
+From: Leviathan <leviathan@vospek.dev>
+Date: Sat, 22 Aug 2026 11:52:27 +0800
+Subject: [PATCH] W1-02 Vec3: stage churn benchmark
+
+Stage 2 of W1-02 (Vec3). Compiles chained immutable add/scale against
+accumulate-into-caller-mutable form; migration target is NMS Vec3 hot
+arithmetic (movement, line-of-sight, explosion falloff).
+---
+ .../objectpath/Vec3ChurnBenchmark.java        | 108 ++++++++++++++++++
+ 1 file changed, 108 insertions(+)
+ create mode 100644 src/main/java/dev/vospek/leviathan/objectpath/Vec3ChurnBenchmark.java
+
+diff --git a/src/main/java/dev/vospek/leviathan/objectpath/Vec3ChurnBenchmark.java b/src/main/java/dev/vospek/leviathan/objectpath/Vec3ChurnBenchmark.java
+new file mode 100644
+index 0000000..090d8cf
+--- /dev/null
++++ b/src/main/java/dev/vospek/leviathan/objectpath/Vec3ChurnBenchmark.java
+@@ -0,0 +1,108 @@
++package dev.vospek.leviathan.objectpath;
++
++import dev.vospek.leviathan.jvm.ZgcMetrics;
++import java.util.Locale;
++
++/**
++ * W1-02 (patch 0007): Vec3 阶段热路径对象创建基准
++ * <p>
++ * 向量链式运算（add/scale 产生新不可变对象）与
++ * "累加进调用方提供的可变目标" 两种模式的 GC 对照。
++ * 迁移目标：NMS Vec3 高频算术调用点（实体运动、视线、爆炸衰减等）。
++ * <p>
++ * 独立运行：{@code java -cp ... Vec3ChurnBenchmark [iterations]}
++ */
++public final class Vec3ChurnBenchmark {
++
++    private final ZgcMetrics metrics = new ZgcMetrics();
++
++    /**
++     * 基准结果
++     */
++    public record Result(
++        long iterations,
++        double allocRateBytesPerSec,
++        long gcCountDelta,
++        long gcTimeMsDelta,
++        long elapsedMs,
++        double checksum
++    ) {
++    }
++
++    record ImmutableVec(double x, double y, double z) {
++
++        ImmutableVec add(ImmutableVec o) {
++            return new ImmutableVec(x + o.x, y + o.y, z + o.z);
++        }
++    }
++
++    static final class MutableVec {
++        double x;
++        double y;
++        double z;
++
++        void setAdd(double bx, double by, double bz, double sx, double sy, double sz, double s) {
++            this.x = bx + sx * s;
++            this.y = by + sy * s;
++            this.z = bz + sz * s;
++        }
++    }
++
++    /**
++     * @param iterations 链式运算步数
++     * @param reuse      true=写入复用 MutableVec；false=每步新建 ImmutableVec
++     */
++    public Result run(long iterations, boolean reuse) {
++        ImmutableVec base = new ImmutableVec(1.0, 2.0, 3.0);
++        ImmutableVec delta = new ImmutableVec(0.5, -0.25, 0.125);
++        MutableVec shared = new MutableVec();
++        double checksum = 0.0;
++
++        long startNanos = System.nanoTime();
++        metrics.allocationRateBytesPerSec();
++        long gcCountBefore = metrics.totalCollectionCount();
++        long gcTimeBefore = metrics.totalCollectionTimeMs();
++
++        for (long i = 0; i < iterations; i++) {
++            if (reuse) {
++                shared.setAdd(base.x, base.y, base.z, delta.x, delta.y, delta.z, i);
++                checksum += shared.x + shared.y + shared.z;
++            } else {
++                ImmutableVec v = base.add(delta);
++                checksum += v.x + v.y + v.z;
++            }
++        }
++
++        double allocRate = metrics.allocationRateBytesPerSec();
++        long endNanos = System.nanoTime();
++        return new Result(
++            iterations,
++            allocRate,
++            Math.max(0L, metrics.totalCollectionCount() - gcCountBefore),
++            Math.max(0L, metrics.totalCollectionTimeMs() - gcTimeBefore),
++            (endNanos - startNanos) / 1_000_000L,
++            checksum
++        );
++    }
++
++    /**
++     * 对照行（阶段 Gate 记录用）
++     */
++    public String compareLine(long iterations) {
++        Result allocate = run(iterations, false);
++        Result reuse = run(iterations, true);
++        return String.format(Locale.ROOT,
++            "vec3 churn: alloc-rate new=%.1fMB/s reuse=%.1fMB/s | gc=+%d/+%dms vs +%d/+%dms"
++                + " | elapsed %dms vs %dms",
++            allocate.allocRateBytesPerSec() / (1024.0 * 1024),
++            reuse.allocRateBytesPerSec() / (1024.0 * 1024),
++            allocate.gcCountDelta(), allocate.gcTimeMsDelta(),
++            reuse.gcCountDelta(), reuse.gcTimeMsDelta(),
++            allocate.elapsedMs(), reuse.elapsedMs());
++    }
++
++    public static void main(String[] args) {
++        long iterations = args != null && args.length > 0 ? Long.parseLong(args[0]) : 8_000_000L;
++        System.out.println(new Vec3ChurnBenchmark().compareLine(iterations));
++    }
++}
+\ No newline at end of file
+-- 
+2.54.0.windows.1
+

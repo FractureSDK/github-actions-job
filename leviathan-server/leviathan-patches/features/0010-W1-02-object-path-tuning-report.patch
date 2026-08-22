@@ -1,0 +1,84 @@
+From 5323b03767307f6b8a597606182453cc3f11186b Mon Sep 17 00:00:00 2001
+From: Leviathan <leviathan@vospek.dev>
+Date: Sat, 22 Aug 2026 11:52:30 +0800
+Subject: [PATCH] W1-02: object path tuning report
+
+Runs all three stage comparisons once and logs a Wave-Gate-ready
+summary plus the ordered checklist for applying results to real NMS
+call sites (BlockPos/MutableBlockPos/Vec3/ChunkPos) once applyPatches
+is available.
+---
+ .../objectpath/ObjectPathTuningReport.java    | 60 +++++++++++++++++++
+ 1 file changed, 60 insertions(+)
+ create mode 100644 src/main/java/dev/vospek/leviathan/objectpath/ObjectPathTuningReport.java
+
+diff --git a/src/main/java/dev/vospek/leviathan/objectpath/ObjectPathTuningReport.java b/src/main/java/dev/vospek/leviathan/objectpath/ObjectPathTuningReport.java
+new file mode 100644
+index 0000000..4b9b816
+--- /dev/null
++++ b/src/main/java/dev/vospek/leviathan/objectpath/ObjectPathTuningReport.java
+@@ -0,0 +1,60 @@
++package dev.vospek.leviathan.objectpath;
++
++import dev.vospek.leviathan.jvm.ZgcMetrics;
++import org.apache.logging.log4j.Logger;
++
++/**
++ * W1-02 (patch 0010): 对象路径优化阶段汇总报告
++ * <p>
++ * 运行三个阶段的对照基准（BlockPos / Vec3 / ChunkPos）并输出
++ * 可记录到 Wave Gate 的摘要行；同时给出迁移到 NMS 调用点的清单。
++ * <p>
++ * 真实 NMS 调用点改造（net.minecraft.core.BlockPos、MutableBlockPos、
++ * net.minecraft.world.phys.Vec3、net.minecraft.ChunkPos）需在
++ * applyPatches 可用的环境中按本报告清单以后续 patch 落地。
++ */
++public final class ObjectPathTuningReport {
++
++    /**
++     * 运行三阶段基准并构造报告行（每行一个阶段；基准只执行一次）
++     */
++    public String[] buildReportLines(long iterations) {
++        return new String[] {
++            "━━━ Leviathan Object-Path Tuning Report ━━━",
++            new BlockPosChurnBenchmark().compareLine(iterations),
++            new Vec3ChurnBenchmark().compareLine(iterations),
++            new ChunkPosPackBenchmark().compareLine(iterations),
++        };
++    }
++
++    /**
++     * 输出报告与 NMS 迁移清单
++     */
++    public void logReport(Logger logger, long iterations) {
++        for (String line : buildReportLines(iterations)) {
++            logger.info("{}", line);
++        }
++        ZgcMetrics metrics = new ZgcMetrics();
++        logger.info("gc totals: count={}, timeMs={}",
++            metrics.totalCollectionCount(), metrics.totalCollectionTimeMs());
++        logger.info("Leviathan object-path migration checklist:");
++        for (String item : migrationChecklist()) {
++            logger.info("  - {}", item);
++        }
++    }
++
++    /**
++     * 迁移清单：applyPatches 可用后按序落地的调用点改造项
++     */
++    public static String[] migrationChecklist() {
++        return new String[] {
++            "BlockPos: hot iteration sites switch to scoped MutableBlockPos reuse "
++                + "(pattern: ScopedMutablePos); benchmark per site",
++            "Vec3: chained arithmetic sites adopt accumulate-into-caller-mutable form; "
++                + "keep API-facing immutability",
++            "ChunkPos: key collections migrate to packed-long keys; "
++                + "verify ticket/chunk map semantics",
++            "each stage lands as its own patch with before/after churn numbers attached",
++        };
++    }
++}
+\ No newline at end of file
+-- 
+2.54.0.windows.1
+

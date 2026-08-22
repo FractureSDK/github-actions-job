@@ -1,0 +1,146 @@
+From 8fc78c3aa5edf3c45ac5ed5ea7d5bc6b19dea8c4 Mon Sep 17 00:00:00 2001
+From: Leviathan <leviathan@vospek.dev>
+Date: Sat, 22 Aug 2026 11:52:26 +0800
+Subject: [PATCH] W1-02 BlockPos: stage churn benchmark
+
+Stage 1 of W1-02 (BlockPos). Quantifies fresh-allocation vs scoped
+mutable-reuse for BlockPos-shaped coordinates using isomorphic stand-in
+structs, so the pattern's GC cost transfers 1:1 to future NMS call-site
+edits. Per P1.md discipline each stage benchmarks independently.
+---
+ .../objectpath/BlockPosChurnBenchmark.java    | 122 ++++++++++++++++++
+ 1 file changed, 122 insertions(+)
+ create mode 100644 src/main/java/dev/vospek/leviathan/objectpath/BlockPosChurnBenchmark.java
+
+diff --git a/src/main/java/dev/vospek/leviathan/objectpath/BlockPosChurnBenchmark.java b/src/main/java/dev/vospek/leviathan/objectpath/BlockPosChurnBenchmark.java
+new file mode 100644
+index 0000000..702e0f8
+--- /dev/null
++++ b/src/main/java/dev/vospek/leviathan/objectpath/BlockPosChurnBenchmark.java
+@@ -0,0 +1,122 @@
++package dev.vospek.leviathan.objectpath;
++
++import dev.vospek.leviathan.jvm.ZgcMetrics;
++
++/**
++ * W1-02 (patch 0006): BlockPos 阶段热路径对象创建基准
++ * <p>
++ * 用同构替身结构（不可变三 int 坐标 vs 可复用可变坐标）量化
++ * "每次新建" 与 "作用域内复用" 两种模式在 GC 维度上的差异。
++ * 结论可直接迁移到未来 NMS BlockPos 调用点的改造（见 0010 报告的清单）。
++ * <p>
++ * 独立运行：{@code java -cp ... BlockPosChurnBenchmark [iterations]}
++ */
++public final class BlockPosChurnBenchmark {
++
++    private final ZgcMetrics metrics = new ZgcMetrics();
++
++    /**
++     * 基准结果
++     */
++    public record Result(
++        long iterations,
++        double allocRateBytesPerSec,
++        long gcCountDelta,
++        long gcTimeMsDelta,
++        long elapsedMs
++    ) {
++    }
++
++    static final class ImmutablePos {
++        final int x;
++        final int y;
++        final int z;
++
++        ImmutablePos(int x, int y, int z) {
++            this.x = x;
++            this.y = y;
++            this.z = z;
++        }
++    }
++
++    static final class MutablePos {
++        int x;
++        int y;
++        int z;
++
++        MutablePos set(int x, int y, int z) {
++            this.x = x;
++            this.y = y;
++            this.z = z;
++            return this;
++        }
++    }
++
++    /**
++     * 运行指定模式的坐标遍历压力
++     *
++     * @param iterations 遍历步数
++     * @param reuse      true=复用单个 MutablePos；false=每步新建 ImmutablePos
++     */
++    public Result run(long iterations, boolean reuse) {
++        AtomicSink sink = new AtomicSink();
++        MutablePos shared = new MutablePos();
++        long startNanos = System.nanoTime();
++        metrics.allocationRateBytesPerSec();
++        long gcCountBefore = metrics.totalCollectionCount();
++        long gcTimeBefore = metrics.totalCollectionTimeMs();
++
++        if (reuse) {
++            for (long i = 0; i < iterations; i++) {
++                int x = (int) (i & 0xFF);
++                int y = (int) ((i >> 8) & 0xFF);
++                int z = (int) ((i >> 16) & 0xFFFF);
++                shared.set(x, y, z);
++                sink.value += shared.x + shared.y + shared.z;
++            }
++        } else {
++            for (long i = 0; i < iterations; i++) {
++                int x = (int) (i & 0xFF);
++                int y = (int) ((i >> 8) & 0xFF);
++                int z = (int) ((i >> 16) & 0xFFFF);
++                ImmutablePos p = new ImmutablePos(x, y, z);
++                sink.value += p.x + p.y + p.z;
++            }
++        }
++
++        double allocRate = metrics.allocationRateBytesPerSec();
++        long endNanos = System.nanoTime();
++        return new Result(
++            iterations,
++            allocRate,
++            Math.max(0L, metrics.totalCollectionCount() - gcCountBefore),
++            Math.max(0L, metrics.totalCollectionTimeMs() - gcTimeBefore),
++            (endNanos - startNanos) / 1_000_000L
++        );
++    }
++
++    /**
++     * 对照运行：分别输出两种模式的指标行，供阶段 Gate 记录
++     */
++    public String compareLine(long iterations) {
++        Result allocate = run(iterations, false);
++        Result reuse = run(iterations, true);
++        return String.format(java.util.Locale.ROOT,
++            "blockpos churn: alloc-rate new=%.1fMB/s reuse=%.1fMB/s | gc=+%d/+%dms vs +%d/+%dms"
++                + " | elapsed %dms vs %dms",
++            allocate.allocRateBytesPerSec() / (1024.0 * 1024),
++            reuse.allocRateBytesPerSec() / (1024.0 * 1024),
++            allocate.gcCountDelta(), allocate.gcTimeMsDelta(),
++            reuse.gcCountDelta(), reuse.gcTimeMsDelta(),
++            allocate.elapsedMs(), reuse.elapsedMs());
++    }
++
++    public static void main(String[] args) {
++        long iterations = args != null && args.length > 0 ? Long.parseLong(args[0]) : 8_000_000L;
++        System.out.println(new BlockPosChurnBenchmark().compareLine(iterations));
++    }
++
++    private static final class AtomicSink {
++        long value;
++    }
++}
+\ No newline at end of file
+-- 
+2.54.0.windows.1
+
