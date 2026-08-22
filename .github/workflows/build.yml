@@ -57,8 +57,13 @@ jobs:
           echo "MC_VERSION=$(grep '^mcVersion=' gradle.properties | cut -d= -f2)" >> "$GITHUB_ENV"
           echo "BUILD_NUMBER=${{ github.run_number }}" >> "$GITHUB_ENV"
 
-      - name: Apply patches and build paperclip jar
-        run: ./gradlew applyAllPatches createPaperclipJar --stacktrace --no-daemon
+      - name: Apply patches
+        # 单独执行: applyAllPatches 会生成 leviathan-server/build.gradle.kts(gitignored),
+        # 之后第二次 Gradle 调用才能配置出 paperweight core 的 createPaperclipJar 任务
+        run: ./gradlew applyAllPatches --stacktrace --no-daemon
+
+      - name: Build paperclip jar
+        run: ./gradlew :leviathan-server:createPaperclipJar --stacktrace --no-daemon
 
       - name: Prepare release notes and rename jar
         run: |
