@@ -15,7 +15,8 @@ concurrency:
   cancel-in-progress: false
 
 permissions:
-  contents: read
+  # GitHub Release 创建需要写 contents(tag + 资产)
+  contents: write
 
 env:
   GRADLE_OPTS: "-Dorg.gradle.jvmargs=-Xmx4g -XX:MaxMetaspaceSize=1g"
