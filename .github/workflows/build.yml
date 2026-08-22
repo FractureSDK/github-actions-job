@@ -84,6 +84,8 @@ jobs:
       - name: Create GitHub Release
         env:
           GH_TOKEN: ${{ github.token }}
+          # 工作区克隆自 GitLab,gh 无法从 remote 推断 GitHub 仓库,显式指定
+          GH_REPO: ${{ github.repository }}
         run: |
           TAG="ver-${MC_VERSION}-${BUILD_NUMBER}"
           # 同 tag 旧 Release 先删,保持幂等(工作流重跑时刷新资产)
